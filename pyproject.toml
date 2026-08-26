@@ -65,6 +65,7 @@ all = ["specsr-roman[hub,train,extract]"]
 [project.urls]
 Homepage = "https://github.com/aryana-haghjoo/specsr-roman"
 Repository = "https://github.com/aryana-haghjoo/specsr-roman"
+Documentation = "https://aryana-haghjoo.github.io/specsr-roman/"
 Issues = "https://github.com/aryana-haghjoo/specsr-roman/issues"
 "Model weights" = "https://huggingface.co/aryana-haghjoo/roman-spectral-superresolution"
 "Training data" = "https://huggingface.co/datasets/aryana-haghjoo/romansr-data"
