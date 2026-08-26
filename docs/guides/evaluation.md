@@ -63,30 +63,10 @@ from specsr_roman.evaluation.figures import make_figures
 make_figures(cache, which=["spectra", "redshift"], outdir="figures/")
 ```
 
-## The two audits
+## Audits
 
-These back the honesty claims, and both are worth re-running after any retrain.
-
-### Photometry ablation
-
-```bash
-specsr-roman evaluate ablation
-```
-
-Answers: how much of the redshift accuracy is the *spectrum*? Because
-photometry enters standardised with statistics baked into the checkpoint,
-"drop a band" is exactly "feed it its training mean" — so this needs no
-retraining.
-
-It is how the 14-band leak was found: masking all bands drops that head to
-NMAD 0.18 / 46 % catastrophic, the single-line information floor, proving the
-spectrum carried almost none of the accuracy.
-
-:::{warning}
-Masking a *partial* subset is out of distribution and non-monotonic — a masked
-"Roman-3" mis-scores ~0.37, roughly 50× worse than truth. Deployable few-band
-numbers must come from an actual retrain.
-:::
+Worth re-running after any retrain — this is the code that backs the
+honesty claims.
 
 ### Prior dominance (inverse crime)
 

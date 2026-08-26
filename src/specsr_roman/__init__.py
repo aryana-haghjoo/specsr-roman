@@ -24,9 +24,8 @@ Stages
            the Roman imaging that ships with it.
 ``SR2``    line-token attention refinement, gated on line presence.
 
-See ``specsr_roman.evaluation`` for the metrics and the two audits --- the
-photometry ablation and the inverse-crime test --- that keep the reported
-numbers honest.
+See ``specsr_roman.evaluation`` for the metrics and for the inverse-crime
+test that keeps the reported numbers honest.
 """
 
 from __future__ import annotations

@@ -30,7 +30,7 @@ def select_bands(phot: np.ndarray, tier: str | None) -> tuple[np.ndarray, tuple[
 
     Using ``"all"`` on OU2024 means feeding LSST *ugrizy* plus all eight Roman
     bands: an effectively complete SED, from which the redshift can be read
-    without the spectrum contributing anything. It is a valid ablation and an
+    without the spectrum contributing anything. It is a valid diagnostic and an
     invalid model.
     """
     keep = resolve_phot_tier(tier)

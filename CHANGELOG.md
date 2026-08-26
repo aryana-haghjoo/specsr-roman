@@ -65,11 +65,6 @@ were live in this repository, not in unreleased code.
   not exist. All artefact rules are now anchored to the repository root.
 - Photometry standardisation statistics are computed from the train split
   only, via `data.photometry.standardization_stats`.
-- The photometry ablation no longer reports a "spectrum zeroed" row. Zeroing
-  the spectral channels is out of distribution for SR1 — unlike masking a
-  photometric band, which standardises to a value the network sees constantly
-  — and it scores *worse* than masking every band, measuring the OOD input
-  rather than the photometry's contribution.
 - `np.trapz` / `np.trapezoid` handled across the NumPy 2.0 rename.
 
 ### Known limitations

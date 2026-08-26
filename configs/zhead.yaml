@@ -3,11 +3,12 @@
 #   specsr-roman train zhead --config configs/zhead.yaml
 #
 # phot_tier: medium == Roman F106/F129/F158 (OU2024 indices 8, 9, 11). These
-# are the only imaging bands that ship with the HLWAS grism. Training on all
-# 14 OU2024 bands of noiseless truth photometry scores NMAD 0.003 with 0%
-# catastrophic outliers, which is the redshift leaking through a complete SED,
-# not a result. phot_eval_mag_err must stay > 0 for the same reason: a metric
-# read off noiseless truth photometry is not a metric.
+# are the only imaging bands that ship with the HLWAS grism. Training on the
+# full OU2024 band set means training on an effectively complete noiseless
+# SED, from which the redshift can be read without the spectrum contributing
+# anything.
+# phot_eval_mag_err must stay > 0 for the same reason: a metric read off
+# noiseless truth photometry is not a metric.
 data: data/dataset/ou2024_h10307_dataset.npz
 sr1_ckpt: sr1_ou2024_v6
 epochs: 150

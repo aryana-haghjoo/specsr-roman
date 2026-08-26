@@ -64,8 +64,6 @@
 .. automodule:: specsr_roman.evaluation.metrics
    :members:
 
-.. automodule:: specsr_roman.evaluation.ablation
-   :members: AblationConfig, run_ablation
 
 .. automodule:: specsr_roman.evaluation.prior_dominance
    :members: PriorDominanceConfig, run_prior_dominance

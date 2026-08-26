@@ -65,8 +65,8 @@ Tiers are `medium`, `deep`, `all`, or an explicit `"8,9,11"`.
 `all` includes LSST *ugrizy*. LSST coverage over Roman's grism footprint is
 external, partial, and not guaranteed at first data release — and with all 14
 noiseless bands the photometry is an effectively complete SED from which the
-redshift can be read without the spectrum contributing anything. Use `all` for
-the ablation, never for a model you intend to deploy.
+redshift can be read without the spectrum contributing anything. It is a
+diagnostic configuration, never one to deploy.
 
 :::{warning}
 OU2024 uses the **old** Roman band names, which collide with the current WFI

@@ -131,7 +131,8 @@ class ZHeadConfig:
     refine_window: int = 8
 
     # photometry. `medium` = Roman F106/F129/F158, the bands that actually
-    # ship with the HLWAS grism. `all` reproduces the leaked ablation.
+    # ship with the HLWAS grism. `all` is a complete noiseless SED: diagnostic
+    # only, never a model to deploy.
     use_phot: bool = True
     phot_tier: str | None = "medium"
     phot_mag_err: float = 0.05

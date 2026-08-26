@@ -41,9 +41,11 @@ phot_tier: medium         # bands that ship with the grism
 phot_eval_mag_err: 0.05   # never score against noiseless truth photometry
 ```
 
-Setting `phot_tier: all` reproduces a leak: NMAD 0.003 with 0 % catastrophic
-outliers, which is impossible for a single-line grism. Setting
-`phot_eval_mag_err: 0` reports an accuracy nobody will reproduce on sky.
+Setting `phot_tier: all` feeds LSST *ugrizy* plus every Roman band — an
+effectively complete, noiseless SED, from which the redshift can be read
+without the spectrum contributing anything.
+Setting `phot_eval_mag_err: 0` reports an accuracy nobody will reproduce on
+sky.
 
 ## Checkpoint selection is not the validation loss
 

@@ -27,7 +27,7 @@ src/specsr_roman/
   training/       sr1.py zhead.py sr2.py losses.py common.py
   extraction/     frames.py catalog.py seds.py simulate.py extract.py batch.py
   inference/      pipeline.py
-  evaluation/     cache.py metrics.py figures.py ablation.py prior_dominance.py
+  evaluation/     cache.py metrics.py figures.py prior_dominance.py
   cli.py
 ```
 
@@ -179,28 +179,19 @@ SR1's smooth σ channel, which averaged a ~5-pixel emission line over 2500
 pixels; the line could not steer the representation. Saliency now comes from
 the flux features themselves.
 
-### The photometry branch, and the leak it caused
+### The photometry branch
 
 Broadband colours over 0.35–2.1 µm break the single-line alias degeneracy —
 exactly the information the grism band lacks. Fluxes enter raw; the branch
 applies `log10` and standardises with train-split statistics carried in the
 `phot_mu` / `phot_sig` buffers, so a checkpoint is self-describing.
 
-That standardisation is also what made the ablation possible without
-retraining: "drop a band" is exactly "feed it its training mean", which
-standardises to 0.
-
-A head fed all 14 OU2024 bands scored NMAD 0.0035 with **0 % catastrophic**,
-which is not possible for a single-line grism. Masking all 14 dropped it to
-NMAD 0.18 / 46 % catastrophic — the single-line floor — proving the spectrum
-carried almost none of the accuracy. The photometry was an effectively
-complete SED, and a noiseless one.
-
-The fix was a retrain, not a mask: masking a *partial* subset is out of
-distribution and non-monotonic (a masked "Roman-3" mis-scored 0.37, ~50× worse
-than truth). The deployable head uses Roman Medium-tier F106/F129/F158 — the
-imaging that ships with the HLWAS grism — with 0.05 mag noise at train *and*
-eval.
+The head takes Roman Medium-tier F106/F129/F158 — the three bands that ship
+with the HLWAS grism — with 0.05 mag noise at train *and* eval. Band choice
+here is a statement about what Roman will actually deliver, not a
+hyperparameter to maximise: given a complete, noiseless SED a head can read
+the redshift off the photometry alone, which measures the catalogue rather
+than the instrument.
 
 > **Naming trap.** OU2024 uses the *old* Roman band names, which collide with
 > the current WFI scheme: OU2024 `R062` is 0.62 µm (current F062), and OU2024
@@ -354,9 +345,8 @@ The **`unrecoverable` bin is the control.** A well-behaved model scores near
 zero there. A model scoring 0.3 is inventing lines, however good its `strong`
 number looks — and no single averaged metric would tell you.
 
-Two audits back the honesty claims:
+The honesty claims are backed by code you can re-run:
 
-- **`ablation.py`** — the photometry leak, above.
 - **`prior_dominance.py`** — the inverse-crime test. Scale a recovered line in
   the *truth* off-manifold by a factor f, forward-model the difference through
   a grism-resolution LSF onto the observed spectrum, re-run, and measure

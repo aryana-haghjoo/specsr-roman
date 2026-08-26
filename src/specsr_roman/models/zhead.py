@@ -149,10 +149,9 @@ class ZHeadClf(nn.Module):
         carried in the ``phot_mu`` / ``phot_sig`` buffers.
 
         Feed it only bands that ship with the grism (see
-        :data:`specsr_roman.grids.ROMAN_MEDIUM_BANDS`). A head trained on all 14
-        OU2024 bands of noiseless truth photometry scores NMAD 0.003 with 0%
-        catastrophic outliers, which is not skill --- it is the redshift
-        leaking in through an effectively complete SED.
+        :data:`specsr_roman.grids.ROMAN_MEDIUM_BANDS`). Given a complete,
+        noiseless SED the head can read the redshift off the photometry alone,
+        which measures the catalogue rather than the instrument.
     """
 
     def __init__(self, centers: torch.Tensor, in_channels: int = 3,

@@ -9,6 +9,8 @@ resolving power the diagnostic complexes stay blended. `specsr-roman` super-reso
 them with a three-stage network, calibrated so that lines the data could not
 have revealed are not drawn.
 
+![The specsr-roman pipeline in three bands: simulating the training data (OpenUniverse2024 SEDs dispersed through the Wang+2022 grism model, extracted with grizli into 36,404 LR-HR pairs); spectral super-resolution (SR1, a conservative 1D residual CNN emitting mean and log-variance, refined by SR2, an attention network with one token per emission line); and the redshift branch (a ZHead taking the coarse spectrum plus three Roman bands and emitting P(z), whose top modes gate which lines SR2 may draw).](_static/arch_pipeline_roman.png)
+
 ```python
 from specsr_roman import RomanPipeline
 

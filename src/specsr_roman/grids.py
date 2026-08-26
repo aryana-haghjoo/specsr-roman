@@ -114,7 +114,7 @@ def resolve_phot_tier(spec: str | None) -> tuple[int, ...] | None:
     """``"medium"`` / ``"deep"`` / ``"all"`` / ``"8,9,11"`` -> band indices.
 
     ``None`` means "use every band the dataset carries", which is only
-    appropriate for ablations --- see :data:`ROMAN_MEDIUM_BANDS`.
+    appropriate as a diagnostic --- see :data:`ROMAN_MEDIUM_BANDS`.
     """
     if spec is None or spec == "":
         return None

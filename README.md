@@ -93,15 +93,13 @@ noise applied at evaluation.
 |---|---|---|---|
 | Grism + Roman Medium (F106/F129/F158), noisy — **deployable** | **0.0065** | 0.0047 | **5.1 %** |
 | Grism only | 0.18 | — | 46 % |
-| Grism + 14-band noiseless truth photometry | 0.003 | — | 0 % ⚠️ |
 
-The last row is **not a result**. 0 % catastrophic is impossible for a
-single-line grism — the information floor is ~37 % — and the ablation
-(`specsr-roman evaluate ablation`) shows why: with all 14 OU2024 bands of noiseless
-catalogue flux, the photometry is an effectively complete SED and the spectrum
-contributes almost nothing. It is kept reproducible precisely so the leak stays
-visible. The deployable row uses only the imaging that actually ships with the
-HLWAS grism, with realistic noise at train *and* eval.
+The deployable row uses only the imaging that actually ships with the HLWAS
+grism, with realistic noise at train *and* eval. The grism-only row is the
+single-line information floor: with one line in band the redshift is genuinely
+alias-degenerate, and ~37 % catastrophic is what the physics allows. Three
+broadband colours break most of that degeneracy, which is the whole reason the
+head takes photometry at all.
 
 **Line amplitude recovery** — median recovered flux fraction, split by whether
 the line was recoverable from the LR data at all:
@@ -129,29 +127,7 @@ strengths from the data, 0 means it recites the training manifold. See
 
 Three stages, each doing one job it can be held to.
 
-```
- LR grism spectrum          Roman imaging
- [flux, err] 864 px         F106 F129 F158
-        │                          │
-        ▼                          │
-   ┌─────────┐                     │
-   │   SR1   │  1D ResNet, 1.4 M params
-   └────┬────┘  → mean + heteroscedastic log-variance, 2500 px
-        │                          │
-        ├──────────────┬───────────┘
-        ▼              ▼
-             ┌──────────────┐
-             │    ZHead     │  attention pooling + photometry branch
-             └──────┬───────┘  → P(z) over 310 bins, 0 < z < 3.1
-                    │
-        ┌───────────┴────────────┐
-        ▼                        ▼
-   ┌─────────┐            top-3 P(z) modes
-   │   SR2   │  98 line tokens, cross-attention + CNN branch
-   └────┬────┘  → sparse delta on SR1, gated by line presence
-        ▼
- super-resolved spectrum + uncertainty + P(z) + line presence
-```
+![The specsr-roman pipeline in three bands: simulating the training data (OpenUniverse2024 SEDs dispersed through the Wang+2022 grism model, extracted with grizli into 36,404 LR-HR pairs); spectral super-resolution (SR1, a conservative 1D residual CNN emitting mean and log-variance, refined by SR2, an attention network with one token per emission line); and the redshift branch (a ZHead taking the coarse spectrum plus three Roman bands and emitting P(z), whose top modes gate which lines SR2 may draw).](docs/_static/arch_pipeline_roman.png)
 
 **SR1** is deliberately conservative. It sees `[flux, err]` scaled by a shared
 factor, so the channel ratio *is* the per-pixel S/N and the network can
@@ -199,8 +175,9 @@ is an error rather than a silent no-op.
 
 Two settings deserve a warning if you change them:
 
-- **`phot_tier`** must stay on bands that ship with the grism. `all` reproduces
-  the leak above.
+- **`phot_tier`** must stay on bands that ship with the grism. `all` adds LSST
+  *ugrizy* plus every Roman band, an effectively complete SED from which the
+  redshift can be read without the spectrum contributing anything.
 - **`phot_eval_mag_err`** must stay above zero. A metric measured on noiseless
   truth photometry is not a metric.
 
