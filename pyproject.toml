@@ -1,0 +1,118 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "specsr-roman"
+version = "0.1.0"
+description = "Physics-informed super-resolution of Roman grism spectra"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Aryana Haghjoo", email = "ahagh010@ucr.edu" },
+]
+keywords = [
+    "astronomy",
+    "spectroscopy",
+    "super-resolution",
+    "deep-learning",
+    "roman-space-telescope",
+    "grism",
+    "slitless-spectroscopy",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "torch>=2.0",
+    "astropy>=5.3",
+    "pyyaml>=6.0",
+    "tqdm>=4.65",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+hub = ["huggingface_hub>=0.23"]
+train = ["wandb>=0.16"]
+# Building datasets from the raw simulation products. Heavy, and only needed
+# if you are re-extracting rather than downloading the released dataset.
+extract = [
+    "grizli>=1.11",
+    "photutils>=1.10",
+    "h5py>=3.9",
+    "pyarrow>=14.0",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.5",
+]
+docs = ["sphinx>=7.2", "furo", "myst-parser"]
+all = ["specsr-roman[hub,train,extract]"]
+
+[project.urls]
+Homepage = "https://github.com/aryana-haghjoo/specsr-roman"
+Repository = "https://github.com/aryana-haghjoo/specsr-roman"
+Issues = "https://github.com/aryana-haghjoo/specsr-roman/issues"
+"Model weights" = "https://huggingface.co/aryana-haghjoo/roman-spectral-superresolution"
+"Training data" = "https://huggingface.co/datasets/aryana-haghjoo/romansr-data"
+
+[project.scripts]
+specsr-roman = "specsr_roman.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/specsr_roman"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/configs",
+    "/docs",
+    "/README.md",
+    "/ARCHITECTURE.md",
+    "/CITATION.cff",
+    "/CHANGELOG.md",
+    "/LICENSE",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: long-running tests",
+    "needs_data: requires a built dataset (SPECSR_ROMAN_TEST_DATA)",
+    "needs_hub: requires network access to the Hugging Face Hub",
+    "needs_extract: requires the [extract] extra (grizli, photutils)",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "NPY"]
+ignore = [
+    # The training loops legitimately carry many locals and long signatures;
+    # splitting them would hide the loop structure rather than clarify it.
+    "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The figure module is matplotlib layout code: single-letter axis handles and
+# semicolon-joined setter calls keep a panel's styling readable as one visual
+# block. Reformatting it to the package style makes it longer and harder to
+# scan, not clearer.
+"src/specsr_roman/evaluation/figures.py" = ["E741", "E702"]

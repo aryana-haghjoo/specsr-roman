@@ -1,0 +1,61 @@
+# Virtual environments
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Docs build
+docs/_build/
+
+# Data: too large for git. The built dataset is on the Hugging Face Hub, and
+# the raw simulation products come from IRSA/AWS -- see docs/guides/data.md.
+#
+# LEADING SLASH IS REQUIRED. An unanchored `data/` also matches
+# `src/specsr_roman/data/`, which silently drops the entire data subpackage from
+# git AND from the built wheel -- `import specsr_roman` succeeds and
+# `specsr_roman.data` does not exist. Same for every artefact directory below.
+/data/
+/grizli_conf/
+
+# Run artefacts: local only. Checkpoints live on the Hub with a provenance
+# card; local disk here is a shared partition and is not a backup.
+/runs/
+/outputs/
+/logs/
+/wandb/
+**/wandb/
+*.pth
+*.pt
+/data/dataset/splits/
+*.npz
+
+# Local agent + secrets
+.claude/
+*roman_mailpass*
+
+# Retired scripts kept locally; the package supersedes them (git history has them too)
+.archive/

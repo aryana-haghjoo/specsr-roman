@@ -1,0 +1,44 @@
+# SR2 --- the published checkpoint `sr2_ou2024_v5_romanonly`.
+#
+#   specsr-roman train sr2 --config configs/sr2.yaml
+#
+# lam_z: 0.0 --- the coupled z-loss is OFF. It is a JWST holdover from the
+# spectra-only regime: it rewards SR2 for drawing every line at the predicted
+# redshift so the ZHead can read it back. With a photometry-fed ZHead the
+# redshift is already known, so the term bought nothing and inflated
+# hallucination amplitude to 2.6x truth during warm-up.
+#
+# The best epoch is early (4) by design, not by accident: the checkpoint goal
+# `-recov_amp + lam_hallu * hallu_amp` selects the sharpest epoch *before*
+# hallucination amplitude runs away (0.26 -> 0.62 by epoch 150).
+data: data/dataset/ou2024_h10307_dataset.npz
+sr1_ckpt: sr1_ou2024_v6
+zhead_ckpt: zhead_ou2024_roman_med3_noisy
+phot_tier: medium
+epochs: 150
+
+batch_size: 32
+lr: 1.0e-4
+weight_decay: 2.0e-5
+grad_clip: 0.5
+
+delta_cap: 40.0
+sigma_base_um: 0.005
+z_topk: 3
+
+lam_hp_in: 3.0
+lam_hp_out: 0.3
+hp_k: 51
+lam_sparse: 0.0
+lam_lineflux: 1.0
+lam_hallu: 1.0
+hallu_snr0: 1.0
+lam_presence: 0.3
+presence_thresh: 3.0
+label_sigma: 0.03
+
+lam_z: 0.0
+lam_z_warmup: 5
+zhead_finetune: true
+zhead_lr_mult: 0.1
+out_prefix: sr2_ou2024_v5_romanonly

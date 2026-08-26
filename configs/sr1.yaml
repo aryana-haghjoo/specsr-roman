@@ -1,0 +1,52 @@
+# SR1 --- the published checkpoint `sr1_ou2024_v6`.
+#
+# Reproduce with:
+#   specsr-roman train sr1 --config configs/sr1.yaml
+#
+# Architecture and optimiser settings are the JWST/JADES sweep optima, kept
+# unchanged so the Roman and JWST models stay comparable. The recoverability
+# terms (lam_lineflux, lam_hallu and their knees) are Roman-specific: they are
+# what stops the model reciting the simulation's line prior on the ~2/3 of rows
+# where no line is detectable.
+data: data/dataset/ou2024_h10307_dataset.npz
+epochs: 200
+augment: false
+
+hidden_dim: 120
+num_res_blocks: 16
+dropout: 0.023538492919758583
+in_channels: 2
+
+batch_size: 32
+lr: 8.23706977169561e-05
+weight_decay: 4.953557427559904e-05
+grad_clip: 0.5
+
+use_var_clamp: true
+var_clamp_min: 0.1
+var_clamp_max: 30.0
+logvar_reg: 1.5590946894260903e-06
+
+mask_smooth_k: 161
+mask_thresh_mad: 8.0
+mask_dilate: 11
+mask_min_width: 7
+
+lam_d1: 0.11
+lam_d2: 0.01
+gate_min_frac: 0.01282614837763313
+gate_temp: 0.2962018702777486
+score_w_line: 0.50334848260373
+score_w_recon: 0.2
+
+sharp_wd_start_epoch: 25
+sharp_wd_rate: 0.008
+sharp_wd_floor: 0.15
+
+lam_lineflux: 1.0
+lineflux_snr0: 2.0
+lam_hallu: 0.5
+hallu_snr0: 1.0
+
+ema_alpha: 0.9
+out_prefix: sr1_ou2024_v6

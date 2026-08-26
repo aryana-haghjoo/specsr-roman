@@ -1,0 +1,35 @@
+# ZHead --- the published checkpoint `zhead_ou2024_roman_med3_noisy`.
+#
+#   specsr-roman train zhead --config configs/zhead.yaml
+#
+# phot_tier: medium == Roman F106/F129/F158 (OU2024 indices 8, 9, 11). These
+# are the only imaging bands that ship with the HLWAS grism. Training on all
+# 14 OU2024 bands of noiseless truth photometry scores NMAD 0.003 with 0%
+# catastrophic outliers, which is the redshift leaking through a complete SED,
+# not a result. phot_eval_mag_err must stay > 0 for the same reason: a metric
+# read off noiseless truth photometry is not a metric.
+data: data/dataset/ou2024_h10307_dataset.npz
+sr1_ckpt: sr1_ou2024_v6
+epochs: 150
+
+arch: clf
+hidden_dim: 64
+num_blocks: 4
+dropout: 0.1
+n_heads: 8
+
+n_bins: 310
+z_lo: 0.0
+z_hi: 3.1
+label_sigma: 0.03
+refine_window: 8
+
+use_phot: true
+phot_tier: medium
+phot_mag_err: 0.05
+phot_eval_mag_err: 0.05
+
+batch_size: 32
+lr: 3.0e-4
+weight_decay: 1.0e-5
+out_prefix: zhead_ou2024_roman_med3_noisy

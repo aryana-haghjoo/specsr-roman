@@ -1,0 +1,107 @@
+# Citation metadata for the specsr-roman package.
+#
+# GitHub renders this as the "Cite this repository" button. The top-level
+# block describes the software; `preferred-citation` points at the method
+# paper, which is what someone using the approach should cite.
+#
+# The Roman-specific manuscript is in preparation and its author list is not
+# yet confirmed, so it is deliberately not listed here. Add it — with the
+# agreed authors — when it is submitted, and keep `version` and
+# `date-released` in step with pyproject.toml on every release.
+
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite the paper below. To reference a
+  specific version of the code, cite this repository directly.
+title: "specsr-roman: physics-informed super-resolution of Roman grism spectra"
+abstract: >-
+  A three-stage, physics-informed deep learning framework that super-resolves
+  Roman Space Telescope slitless grism spectra, with a photometry-conditioned
+  redshift head that breaks the single-line alias degeneracy and an
+  attention-based refinement stage calibrated on line recoverability, so that
+  emission lines the data cannot support are not drawn.
+type: software
+authors:
+  - given-names: Aryana
+    family-names: Haghjoo
+    orcid: "https://orcid.org/0009-0006-3071-7143"
+    email: ahagh010@ucr.edu
+    affiliation: >-
+      Department of Physics and Astronomy, University of California Riverside
+version: 0.1.0
+date-released: "2026-08-26"
+license: MIT
+repository-code: "https://github.com/aryana-haghjoo/specsr-roman"
+keywords:
+  - astronomy
+  - spectroscopy
+  - super-resolution
+  - deep-learning
+  - roman-space-telescope
+  - grism
+  - slitless-spectroscopy
+
+references:
+  - type: article
+    title: >-
+      The High Latitude Spectroscopic Survey on the Nancy Grace Roman Space
+      Telescope
+    authors:
+      - given-names: Yun
+        family-names: Wang
+    journal: "The Astrophysical Journal"
+    year: 2022
+    notes: Roman GRS grism configuration used to disperse and extract.
+  - type: article
+    title: >-
+      OpenUniverse2024: A shared, simulated view of the sky for the next
+      generation of cosmological surveys
+    authors:
+      - given-names: Michael A.
+        family-names: Troxel
+    year: 2025
+    identifiers:
+      - type: other
+        value: "arXiv:2501.05632"
+        description: arXiv preprint
+    notes: Source of the simulated images, catalogues and SEDs.
+
+preferred-citation:
+  type: article
+  title: >-
+    Learning to See Sharper: A Physics-Informed Artificial Intelligence
+    Framework for Super-Resolving Galaxy Spectra
+  authors:
+    - given-names: Aryana
+      family-names: Haghjoo
+      orcid: "https://orcid.org/0009-0006-3071-7143"
+    - given-names: Shoubaneh
+      family-names: Hemmati
+    - given-names: Bahram
+      family-names: Mobasher
+      orcid: "https://orcid.org/0000-0001-5846-4404"
+    - given-names: Nima
+      family-names: Chartab
+      orcid: "https://orcid.org/0000-0003-3691-937X"
+    - given-names: Alexander
+      family-names: de la Vega
+      orcid: "https://orcid.org/0000-0002-6219-5558"
+    - given-names: Tim
+      family-names: Eifler
+      orcid: "https://orcid.org/0000-0002-1894-3301"
+    - given-names: Emily
+      family-names: Ramey
+      orcid: "https://orcid.org/0000-0003-0447-8426"
+    - given-names: Hooshang
+      family-names: Nayyeri
+      orcid: "https://orcid.org/0000-0001-8242-9983"
+    - given-names: Zahra
+      family-names: Sattari
+      orcid: "https://orcid.org/0000-0002-0364-1159"
+  journal: "The Astrophysical Journal"
+  year: 2026
+  url: "https://arxiv.org/abs/2603.18357"
+  identifiers:
+    - type: other
+      value: "arXiv:2603.18357"
+      description: arXiv preprint
