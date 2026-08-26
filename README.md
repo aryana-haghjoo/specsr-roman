@@ -33,11 +33,18 @@ is [`specsr`](https://github.com/aryana-haghjoo/specsr) (Haghjoo et al. 2026).
 
 ## Install
 
+Not on PyPI yet — install from source:
+
 ```bash
-pip install specsr-roman                 # inference + training
-pip install "specsr-roman[extract]"      # + dataset building (grizli, photutils)
-pip install "specsr-roman[all]"          # everything
+GH=git+https://github.com/aryana-haghjoo/specsr-roman
+pip install "specsr-roman @ $GH"               # inference + training
+pip install "specsr-roman[hub] @ $GH"          # + published checkpoints and data
+pip install "specsr-roman[extract] @ $GH"      # + dataset building (grizli, photutils)
+pip install "specsr-roman[all] @ $GH"          # everything
 ```
+
+Once released, `pip install specsr-roman` (with the same extras) will do the
+same thing.
 
 ## Use it
 

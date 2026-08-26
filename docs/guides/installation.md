@@ -1,10 +1,17 @@
 # Installation
 
+`specsr-roman` is not on PyPI yet, so install it from the repository:
+
 ```bash
-pip install specsr-roman                 # inference + training
-pip install "specsr-roman[extract]"      # + dataset building
-pip install "specsr-roman[all]"          # everything
+GH=git+https://github.com/aryana-haghjoo/specsr-roman
+pip install "specsr-roman @ $GH"               # inference + training
+pip install "specsr-roman[hub] @ $GH"          # + published checkpoints and data
+pip install "specsr-roman[extract] @ $GH"      # + dataset building
+pip install "specsr-roman[all] @ $GH"          # everything
 ```
+
+Once it is released, `pip install specsr-roman` (with the same extras) will do
+the same thing, and the lines above keep working either way.
 
 Python 3.10 or newer.
 
