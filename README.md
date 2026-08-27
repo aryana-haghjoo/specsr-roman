@@ -6,6 +6,7 @@ emission lines without inventing them.**
 [![CI](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml/badge.svg)](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://aryana-haghjoo.github.io/specsr-roman/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22119689.svg)](https://doi.org/10.5281/zenodo.22119689)
+[![PyPI](https://img.shields.io/pypi/v/specsr-roman)](https://pypi.org/project/specsr-roman/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Model weights](https://img.shields.io/badge/%F0%9F%A4%97-model%20weights-yellow)](https://huggingface.co/aryana-haghjoo/roman-spectral-superresolution)
 [![Dataset](https://img.shields.io/badge/%F0%9F%A4%97-training%20data-yellow)](https://huggingface.co/datasets/aryana-haghjoo/romansr-data)
@@ -35,18 +36,14 @@ is [`specsr`](https://github.com/aryana-haghjoo/specsr) (Haghjoo et al. 2026).
 
 ## Install
 
-Not on PyPI yet — install from source:
-
 ```bash
-GH=git+https://github.com/aryana-haghjoo/specsr-roman
-pip install "specsr-roman @ $GH"               # inference + training
-pip install "specsr-roman[hub] @ $GH"          # + published checkpoints and data
-pip install "specsr-roman[extract] @ $GH"      # + dataset building (grizli, photutils)
-pip install "specsr-roman[all] @ $GH"          # everything
+pip install specsr-roman                 # inference + training
+pip install "specsr-roman[hub]"          # + published checkpoints and data
+pip install "specsr-roman[extract]"      # + dataset building (grizli, photutils)
+pip install "specsr-roman[all]"          # everything
 ```
 
-Once released, `pip install specsr-roman` (with the same extras) will do the
-same thing.
+Python 3.10 or newer.
 
 ## Use it
 
