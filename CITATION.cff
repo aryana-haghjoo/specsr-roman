@@ -7,7 +7,8 @@
 # The Roman-specific manuscript is in preparation and its author list is not
 # yet confirmed, so it is deliberately not listed here. Add it — with the
 # agreed authors — when it is submitted, and keep `version` and
-# `date-released` in step with pyproject.toml on every release.
+# `date-released` and the version DOI in step with pyproject.toml on every
+# release.
 
 cff-version: 1.2.0
 message: >-
@@ -32,6 +33,18 @@ version: 0.1.0
 date-released: "2026-08-26"
 license: MIT
 repository-code: "https://github.com/aryana-haghjoo/specsr-roman"
+url: "https://aryana-haghjoo.github.io/specsr-roman/"
+# The CONCEPT DOI, which always resolves to the newest version. The DOI for
+# this particular release is 10.5281/zenodo.22119690; bump `identifiers`
+# below on each release, but leave `doi` alone.
+doi: "10.5281/zenodo.22119689"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.22119689"
+    description: Concept DOI — all versions
+  - type: doi
+    value: "10.5281/zenodo.22119690"
+    description: Version DOI — v0.1.0
 keywords:
   - astronomy
   - spectroscopy

@@ -5,6 +5,7 @@ emission lines without inventing them.**
 
 [![CI](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml/badge.svg)](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://aryana-haghjoo.github.io/specsr-roman/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22119689.svg)](https://doi.org/10.5281/zenodo.22119689)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Model weights](https://img.shields.io/badge/%F0%9F%A4%97-model%20weights-yellow)](https://huggingface.co/aryana-haghjoo/roman-spectral-superresolution)
 [![Dataset](https://img.shields.io/badge/%F0%9F%A4%97-training%20data-yellow)](https://huggingface.co/datasets/aryana-haghjoo/romansr-data)
@@ -249,10 +250,16 @@ Stated plainly, because they bound what the numbers mean.
 
 ## Citation
 
-If you use this software, please cite the paper and the code (see
-`CITATION.cff`). The method paper for the JWST original is Haghjoo et al.
-(2026), *Learning to See Sharper: A Physics-Informed Artificial Intelligence
-Framework for Super-Resolving Galaxy Spectra*, ApJ.
+If you use this software, please cite the paper and the code. The method paper
+for the JWST original is Haghjoo et al. (2026), *Learning to See Sharper: A
+Physics-Informed Artificial Intelligence Framework for Super-Resolving Galaxy
+Spectra*, ApJ.
+
+The code is archived on Zenodo. Cite [`10.5281/zenodo.22119689`](https://doi.org/10.5281/zenodo.22119689)
+for the software in general — it always resolves to the newest version — or the
+version DOI on that record to pin the exact release you ran. `CITATION.cff`
+carries both, and GitHub's "Cite this repository" button renders it as BibTeX
+or APA.
 
 Simulation products: Troxel et al. (2025), OpenUniverse2024; Wang et al.
 (2022) for the Roman GRS grism configuration.
