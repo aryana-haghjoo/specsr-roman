@@ -7,6 +7,7 @@ emission lines without inventing them.**
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://aryana-haghjoo.github.io/specsr-roman/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22119689.svg)](https://doi.org/10.5281/zenodo.22119689)
 [![PyPI](https://img.shields.io/pypi/v/specsr-roman)](https://pypi.org/project/specsr-roman/)
+[![Python](https://img.shields.io/pypi/pyversions/specsr-roman)](https://pypi.org/project/specsr-roman/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Model weights](https://img.shields.io/badge/%F0%9F%A4%97-model%20weights-yellow)](https://huggingface.co/aryana-haghjoo/roman-spectral-superresolution)
 [![Dataset](https://img.shields.io/badge/%F0%9F%A4%97-training%20data-yellow)](https://huggingface.co/datasets/aryana-haghjoo/romansr-data)
