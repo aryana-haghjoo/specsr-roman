@@ -66,8 +66,17 @@ out.pz, out.z_grid # the full P(z) — keep it, see "Redshifts are multimodal"
 out.presence       # per-line presence probability, over 98 features
 ```
 
-`phot=None` runs grism-only. That is honest but much weaker — see the table
-below — because a single in-band line is alias-degenerate.
+`phot=None` drops the colour prior, and the redshift degrades sharply — 26 %
+catastrophic against 5 %, see the table below — because a single in-band line
+is alias-degenerate. It is not the same thing as a grism-only *model*: this
+head was trained with photometry, so `None` hands it its training-mean
+colours.
+
+**New here?** [`tutorials/01_getting_started.ipynb`](tutorials/01_getting_started.ipynb)
+([rendered](https://aryana-haghjoo.github.io/specsr-roman/tutorials/01_getting_started.html))
+runs the whole thing end to end on a 512-spectrum sample: one super-resolved
+spectrum, the redshift PDF, what photometry buys, and the recoverability-binned
+line recovery below. Two minutes on a CPU, no dataset download.
 
 From the command line:
 
@@ -92,14 +101,25 @@ noise applied at evaluation.
 | Configuration | NMAD | median \|Δz\|/(1+z) | catastrophic |
 |---|---|---|---|
 | Grism + Roman Medium (F106/F129/F158), noisy — **deployable** | **0.0065** | 0.0047 | **5.1 %** |
-| Grism only | 0.18 | — | 46 % |
+| The same chain called with `phot=None` | 0.014 | 0.0095 | 26 % |
 
 The deployable row uses only the imaging that actually ships with the HLWAS
-grism, with realistic noise at train *and* eval. The grism-only row is the
-single-line information floor: with one line in band the redshift is genuinely
-alias-degenerate, and ~37 % catastrophic is what the physics allows. Three
-broadband colours break most of that degeneracy, which is the whole reason the
-head takes photometry at all.
+grism, with realistic noise at train *and* eval. Three broadband colours break
+most of the alias degeneracy, which is the whole reason the head takes
+photometry at all.
+
+The second row is what this chain does when you call it with `phot=None`, and
+it is **not** the grism-only information floor. The head was trained with
+photometry, so passing `None` feeds it its training-mean colours: mean
+imputation on an out-of-distribution input rather than a clean ablation of the
+information. A head actually trained without colours is a separate experiment,
+and has not been run. The floor itself is set by physics rather than by
+architecture — with one line in band the identification is genuinely
+alias-degenerate, and ~37 % catastrophic is what that allows.
+
+Both rows come from `specsr-roman evaluate ablation`, which measures the
+published head with and without its three colours and sweeps the photometric
+noise. Every configuration it reports uses those three bands and no others.
 
 **Line amplitude recovery** — median recovered flux fraction, split by whether
 the line was recoverable from the LR data at all:
@@ -175,9 +195,10 @@ is an error rather than a silent no-op.
 
 Two settings deserve a warning if you change them:
 
-- **`phot_tier`** must stay on bands that ship with the grism. `all` adds LSST
-  *ugrizy* plus every Roman band, an effectively complete SED from which the
-  redshift can be read without the spectrum contributing anything.
+- **`phot_tier`** must stay on bands that ship with the grism. `medium` is the
+  only tier, and `grids.MAX_PHOT_BANDS` caps an explicit band list at three:
+  hand a model more bands than the survey delivers alongside a spectrum and it
+  reads the redshift off an effectively complete SED instead of the grism.
 - **`phot_eval_mag_err`** must stay above zero. A metric measured on noiseless
   truth photometry is not a metric.
 
@@ -211,7 +232,9 @@ specsr-roman extract merge                            # → one training npz
 ```
 
 Or skip it: the built dataset is on the
-[Hub](https://huggingface.co/datasets/aryana-haghjoo/romansr-data).
+[Hub](https://huggingface.co/datasets/aryana-haghjoo/romansr-data), together
+with a 3.8 MB, 512-row `tutorial/` subset drawn from the held-out split for the
+notebook above.
 
 Each (visit, SCA) runs in its own subprocess — grizli's numba disperser
 corrupts the heap when thousands of sources go through one process — and caches

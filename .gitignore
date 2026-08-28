@@ -28,8 +28,11 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Docs build
+# Docs build. docs/tutorials/ is a build-time copy of the top-level tutorials/
+# (see docs/conf.py) -- the originals are tracked, the copy is not.
 docs/_build/
+docs/tutorials/
+docs/jupyter_execute/
 
 # Data: too large for git. The built dataset is on the Hugging Face Hub, and
 # the raw simulation products come from IRSA/AWS -- see docs/guides/data.md.

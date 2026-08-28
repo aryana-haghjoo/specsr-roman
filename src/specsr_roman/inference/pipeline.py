@@ -109,10 +109,14 @@ class RomanPipeline:
 
     ``phot`` must be the same band set the ZHead was trained on --- three
     Roman Medium-tier fluxes (F106, F129, F158) for the published checkpoint,
-    in that order, in any consistent linear flux unit. Pass ``None`` to run
-    grism-only, which is honest but much weaker: without a colour prior a
-    single in-band line is alias-degenerate and roughly 46% of redshifts are
-    catastrophic outliers.
+    in that order, in any consistent linear flux unit.
+
+    Passing ``None`` drops the colour prior and costs most of the redshift
+    accuracy --- 26% catastrophic outliers on the held-out split against 5%
+    with the imaging --- because a single in-band line is alias-degenerate.
+    It is not a grism-only *model*, though: this head was trained with
+    photometry, so it receives its training-mean colours rather than nothing,
+    which is mean imputation on an out-of-distribution input.
     """
 
     def __init__(self, sr1, zhead, sr2, device="cpu",

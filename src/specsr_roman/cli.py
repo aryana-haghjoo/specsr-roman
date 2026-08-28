@@ -128,6 +128,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="comma list: spectra,river,sn,redshift,psd")
     fi.add_argument("--rebuild", action="store_true")
 
+    ab = ev_sub.add_parser("ablation",
+                           help="photometry ablation: with and without colours")
+    ab.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
+    ab.add_argument("--out-dir", default="outputs")
 
     pd = ev_sub.add_parser("prior", help="inverse-crime / prior-dominance audit")
     pd.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
@@ -295,6 +299,10 @@ def _cmd_evaluate(args) -> int:
         make_figures(c, which=which, outdir=args.outdir)
         return 0
 
+    if args.what == "ablation":
+        from .evaluation.ablation import AblationConfig, run_ablation
+        run_ablation(AblationConfig(data=args.data, out_dir=args.out_dir))
+        return 0
 
     if args.what == "prior":
         from .evaluation.prior_dominance import PriorDominanceConfig, run_prior_dominance

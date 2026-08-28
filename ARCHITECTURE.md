@@ -192,6 +192,22 @@ here is a statement about what Roman will actually deliver, not a
 hyperparameter to maximise: given a complete, noiseless SED a head can read
 the redshift off the photometry alone, which measures the catalogue rather
 than the instrument.
+That standardisation is what makes the photometry ablation possible without
+retraining: "drop a band" is exactly "feed it its training mean", which
+standardises to 0 — the same vector `RomanPipeline.predict(phot=None)` sends.
+
+`specsr-roman evaluate ablation` uses it to answer which input the redshift
+came from. Removing all three colours takes the published head from NMAD
+0.0064 / 5.3 % catastrophic to **0.0143 / 26.2 %**, so the colours carry most
+of the alias-breaking. Read that as an upper bound rather than an information
+floor: the head was *trained* with colours, and a grism-only head is a
+separate experiment that has not been run.
+
+The noise sweep in the same audit is the continuous version. Even with
+*noiseless* colours the outlier rate is 3.9 % rather than zero — the signature
+of a head reading its spectrum. A model that reaches 0 % is being handed an
+effectively complete SED, which is why `grids.MAX_PHOT_BANDS` caps the band
+count at the three that fly with the grism.
 
 > **Naming trap.** OU2024 uses the *old* Roman band names, which collide with
 > the current WFI scheme: OU2024 `R062` is 0.62 µm (current F062), and OU2024
@@ -347,6 +363,9 @@ number looks — and no single averaged metric would tell you.
 
 The honesty claims are backed by code you can re-run:
 
+- **`ablation.py`** — the photometry ablation, above: what the three colours
+  buy, and how the answer degrades as they get worse.
+
 - **`prior_dominance.py`** — the inverse-crime test. Scale a recovered line in
   the *truth* off-manifold by a factor f, forward-model the difference through
   a grism-resolution LSF onto the observed spectrum, re-run, and measure
@@ -369,7 +388,9 @@ The honesty claims are backed by code you can re-run:
 
 ## Extending it
 
-**A new photometric tier**: add it to `grids.PHOT_TIERS`. Everything —
+**A new photometric tier**: add it to `grids.PHOT_TIERS`, and raise
+`grids.MAX_PHOT_BANDS` only if the survey really delivers those bands
+alongside a grism spectrum — then re-run the photometry ablation. Everything —
 dataset slicing, the ZHead's `n_phot`, the CLI flag — follows from that one
 entry. Keep the "ships with the grism" rule.
 

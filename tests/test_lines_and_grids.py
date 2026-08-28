@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 
 from specsr_roman.grids import (
+    MAX_PHOT_BANDS,
     N_HR,
     N_LR,
     PHOT_BANDS,
-    ROMAN_DEEP_BANDS,
     ROMAN_MEDIUM_BANDS,
     WAVE_HR,
     WAVE_LR,
@@ -70,7 +70,7 @@ def test_phot_tiers_index_roman_bands_only():
     assert len(PHOT_BANDS) == 14
     # The deployable tiers must never include an LSST band (indices 0-5):
     # LSST coverage is not guaranteed where Roman's grism will observe.
-    for tier in (ROMAN_MEDIUM_BANDS, ROMAN_DEEP_BANDS):
+    for tier in (ROMAN_MEDIUM_BANDS,):
         assert all(i >= 6 for i in tier)
         assert all(PHOT_BANDS[i].startswith("roman_") for i in tier)
 
@@ -79,5 +79,8 @@ def test_resolve_phot_tier_forms():
     assert resolve_phot_tier("medium") == ROMAN_MEDIUM_BANDS
     assert resolve_phot_tier("8,9,11") == (8, 9, 11)
     assert resolve_phot_tier(None) is None
+    # More bands than the survey ships with the grism is refused outright.
+    with pytest.raises(ValueError, match="ceiling"):
+        resolve_phot_tier(",".join(str(b) for b in range(MAX_PHOT_BANDS + 1)))
     with pytest.raises(ValueError):
         resolve_phot_tier("not-a-tier")

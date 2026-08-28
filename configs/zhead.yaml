@@ -6,7 +6,7 @@
 # are the only imaging bands that ship with the HLWAS grism. Training on the
 # full OU2024 band set means training on an effectively complete noiseless
 # SED, from which the redshift can be read without the spectrum contributing
-# anything.
+# anything. `grids.MAX_PHOT_BANDS` refuses such a configuration outright.
 # phot_eval_mag_err must stay > 0 for the same reason: a metric read off
 # noiseless truth photometry is not a metric.
 data: data/dataset/ou2024_h10307_dataset.npz

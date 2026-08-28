@@ -88,20 +88,22 @@ BAND_PIVOT: dict[str, float] = {
     "roman_flux_F184": 18400, "roman_flux_K213": 21300,
 }
 
-# Photometric tiers that ship *with the grism* in the real survey. These are
-# the only band sets a deployable model may use: the HLWAS grism comes with
-# Roman imaging in the same tier, while LSST optical coverage over the
-# footprint is external, partial, and not guaranteed at first data release.
-# Training on LSST bands inflates the redshift accuracy with data that will
-# not be there.
+# The photometry that ships *with the grism* in the real survey, and the only
+# band set a model here may use: the HLWAS grism comes with Medium-tier Roman
+# imaging in F106/F129/F158. Wider sets are deliberately absent. LSST optical
+# coverage over the footprint is external, partial and not guaranteed at first
+# data release, and a model handed enough bands stops measuring the instrument
+# and starts reading the redshift off an effectively complete SED --- which
+# scores well on a simulation and cannot be reproduced on the sky.
 ROMAN_MEDIUM_BANDS: tuple[int, ...] = (8, 9, 11)          # F106 / F129 / F158
-ROMAN_DEEP_BANDS: tuple[int, ...] = (7, 8, 9, 10, 11, 12, 13)
-ALL_BANDS: tuple[int, ...] = tuple(range(14))
+
+#: Hard ceiling on how many bands may be fed to a model. Raise it only
+#: alongside a survey tier that actually delivers that many alongside a grism
+#: spectrum, and re-run the photometry ablation when you do.
+MAX_PHOT_BANDS: int = len(ROMAN_MEDIUM_BANDS)
 
 PHOT_TIERS: dict[str, tuple[int, ...]] = {
     "medium": ROMAN_MEDIUM_BANDS,
-    "deep": ROMAN_DEEP_BANDS,
-    "all": ALL_BANDS,
 }
 
 # AB anchor for OU2024 H158: images carry counts = f_cat * 10^(0.4 * ZPTMAG),
@@ -111,10 +113,12 @@ OU2024_ZPTMAG = 16.8009
 
 
 def resolve_phot_tier(spec: str | None) -> tuple[int, ...] | None:
-    """``"medium"`` / ``"deep"`` / ``"all"`` / ``"8,9,11"`` -> band indices.
+    """``"medium"`` or an explicit ``"8,9,11"`` -> band indices.
 
-    ``None`` means "use every band the dataset carries", which is only
-    appropriate as a diagnostic --- see :data:`ROMAN_MEDIUM_BANDS`.
+    ``None`` means "use every band the dataset file carries" and is a *loader*
+    convenience --- OU2024 stores 14 columns whatever a model consumes. It is
+    not a model configuration: every training config names a tier, and
+    :data:`MAX_PHOT_BANDS` caps what a model can be handed.
     """
     if spec is None or spec == "":
         return None
@@ -122,9 +126,17 @@ def resolve_phot_tier(spec: str | None) -> tuple[int, ...] | None:
     if key in PHOT_TIERS:
         return PHOT_TIERS[key]
     try:
-        return tuple(int(b) for b in spec.split(","))
+        bands = tuple(int(b) for b in spec.split(","))
     except ValueError as exc:  # pragma: no cover - argparse-level guard
         raise ValueError(
             f"phot tier {spec!r} is neither a named tier "
             f"({'/'.join(PHOT_TIERS)}) nor a comma-separated index list"
         ) from exc
+    if len(bands) > MAX_PHOT_BANDS:
+        raise ValueError(
+            f"phot tier {spec!r} asks for {len(bands)} bands; the ceiling is "
+            f"{MAX_PHOT_BANDS} (Roman Medium-tier F106/F129/F158). More bands "
+            "than the survey delivers with the grism turn the redshift into a "
+            "photometric one measured on simulated colours -- see "
+            "specsr_roman.evaluation.ablation")
+    return bands

@@ -31,6 +31,13 @@ guides/evaluation
 ```
 
 ```{toctree}
+:maxdepth: 1
+:caption: Tutorials
+
+tutorials/01_getting_started
+```
+
+```{toctree}
 :maxdepth: 2
 :caption: Reference
 

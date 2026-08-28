@@ -13,6 +13,24 @@ path = hf_hub_download("aryana-haghjoo/romansr-data",
 
 36,404 extracted spectra of 15,434 galaxies, healpix 10307, 0.06 < z < 3.1.
 
+### The tutorial subset
+
+A 3.8 MB, 512-row sample sits in the same repo under `tutorial/`, for the
+[getting-started notebook](../tutorials/01_getting_started.ipynb) and for any
+quick check that does not need 271 MB:
+
+```python
+path = hf_hub_download("aryana-haghjoo/romansr-data",
+                       "tutorial/ou2024_h10307_tutorial.npz", repo_type="dataset")
+```
+
+Same schema, plus a `source_row` column recording where each row came from in
+the full file. It is drawn from the **held-out side** of the canonical split
+and sampled uniformly within it — so out-of-sample metrics computed on it are
+honest, and the mix of recoverable and undetectable lines is the population's
+own rather than a flattering selection. Rebuild it with
+`python scripts/make_tutorial_dataset.py`.
+
 ## Schema
 
 One npz, all rows on two shared grids:

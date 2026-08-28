@@ -25,7 +25,7 @@ def select_bands(phot: np.ndarray, tier: str | None) -> tuple[np.ndarray, tuple[
     """Keep only the bands that ship with the grism.
 
     ``tier`` is ``"medium"`` (Roman F106/F129/F158 --- what the HLWAS grism
-    actually comes with), ``"deep"``, ``"all"``, an explicit ``"8,9,11"``, or
+    actually comes with), an explicit ``"8,9,11"``, or
     ``None`` to keep everything.
 
     Using ``"all"`` on OU2024 means feeding LSST *ugrizy* plus all eight Roman

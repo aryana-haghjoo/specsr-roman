@@ -74,6 +74,7 @@ def test_overrides_beat_the_file():
     ["evaluate", "cache"],
     ["evaluate", "metrics"],
     ["evaluate", "figures", "--which", "spectra"],
+    ["evaluate", "ablation"],
     ["evaluate", "prior"],
     ["info"],
 ])

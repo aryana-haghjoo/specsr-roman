@@ -1,5 +1,9 @@
 # Evaluation
 
+Every metric on this page is computed end to end, on real predictions, in the
+[getting-started notebook](../tutorials/01_getting_started.ipynb) — including
+the recoverability split below and what it looks like when a model behaves.
+
 ## The prediction cache
 
 Every figure and every quoted number reads one frozen npz rather than a live
@@ -67,6 +71,30 @@ make_figures(cache, which=["spectra", "redshift"], outdir="figures/")
 
 Worth re-running after any retrain — this is the code that backs the
 honesty claims.
+
+### Photometry ablation
+
+```bash
+specsr-roman evaluate ablation
+```
+
+Answers: how much of the redshift accuracy is the *spectrum*? Because
+photometry enters standardised with statistics baked into the checkpoint,
+"drop a band" is exactly "feed it its training mean" — so this needs no
+retraining.
+
+Removing all three colours takes the published head from NMAD 0.0064 / 5.3 %
+catastrophic to **0.0143 / 26.2 %**, so the colours carry most of the
+alias-breaking. The same run sweeps the photometric noise: even with
+*noiseless* colours the outlier rate is 3.9 % rather than zero, which is what a
+head reading its spectrum should look like.
+
+:::{warning}
+Read the no-photometry row as an upper bound, not as the information floor.
+This head was *trained* with colours, so mean-imputing them measures the
+deployed chain in a degraded mode — not a grism-only model, which is a
+separate experiment that has not been run.
+:::
 
 ### Prior dominance (inverse crime)
 

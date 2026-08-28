@@ -33,7 +33,7 @@ from __future__ import annotations
 __version__ = "0.1.0"
 
 from .config import SR1Config, SR2Config, ZHeadConfig
-from .grids import PHOT_BANDS, ROMAN_DEEP_BANDS, ROMAN_MEDIUM_BANDS, WAVE_HR, WAVE_LR
+from .grids import MAX_PHOT_BANDS, PHOT_BANDS, ROMAN_MEDIUM_BANDS, WAVE_HR, WAVE_LR
 from .lines import LINE_LIST_REST_AA, SR1_LINES_AA, STRONG_LINES_AA
 
 __all__ = [
@@ -43,7 +43,7 @@ __all__ = [
     "RomanFixedGridDataset",
     "SR1Config", "ZHeadConfig", "SR2Config",
     "WAVE_LR", "WAVE_HR", "PHOT_BANDS",
-    "ROMAN_MEDIUM_BANDS", "ROMAN_DEEP_BANDS",
+    "ROMAN_MEDIUM_BANDS", "MAX_PHOT_BANDS",
     "LINE_LIST_REST_AA", "SR1_LINES_AA", "STRONG_LINES_AA",
 ]
 

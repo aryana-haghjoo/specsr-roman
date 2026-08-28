@@ -5,6 +5,8 @@ published docs, and the cheapest place to catch it is here.
 """
 
 import importlib.metadata
+import pathlib
+import shutil
 
 project = "specsr-roman"
 author = "Aryana Haghjoo"
@@ -21,11 +23,35 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
-    "myst_parser",
+    # myst_nb supersedes myst_parser -- it loads it itself, and listing both
+    # raises "extension already registered". It is what renders the notebooks.
+    "myst_nb",
 ]
 
 myst_enable_extensions = ["colon_fence", "deflist"]
-source_suffix = {".md": "markdown", ".rst": "restructuredtext"}
+# myst_nb registers .md and .ipynb itself; only .rst needs naming here.
+source_suffix = {".md": "myst-nb", ".rst": "restructuredtext",
+                 ".ipynb": "myst-nb"}
+
+# Render the notebooks from the outputs they were committed with. Executing
+# them here would make every docs build download checkpoints and a dataset,
+# and would silently republish numbers nobody reviewed; the notebook in git is
+# the one that was run and read.
+nb_execution_mode = "off"
+nb_merge_streams = True
+
+# The tutorials live at the repository root, where someone browsing the repo
+# finds them without digging through docs/. Sphinx only reads sources under
+# this directory, so copy them in at build time rather than keeping a second
+# copy in git that would drift from the first.
+_DOCS = pathlib.Path(__file__).resolve().parent
+_TUTORIALS = _DOCS.parent / "tutorials"
+if _TUTORIALS.is_dir():
+    dest = _DOCS / "tutorials"
+    shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir()
+    for src in sorted(_TUTORIALS.glob("*.ipynb")):
+        shutil.copy2(src, dest / src.name)
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build"]

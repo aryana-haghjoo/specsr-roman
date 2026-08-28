@@ -1,5 +1,9 @@
 # Quickstart
 
+This page is the API in reference form. For the same ground covered as a
+worked example — with plots, real numbers and the reasoning behind them — see
+the [getting-started notebook](../tutorials/01_getting_started.ipynb).
+
 ## Super-resolve a spectrum
 
 ```python
@@ -52,9 +56,17 @@ with suspicion — that is what the PDF is telling you.
 out = pipe.predict(flux_low, flux_low_err, phot=None)
 ```
 
-This works and is honest, but is much weaker: without a colour prior a single
-in-band line is alias-degenerate, and roughly 46 % of redshifts are
-catastrophic outliers against 5 % with Roman Medium-tier imaging.
+This works, and it is much weaker. On the held-out split it gives NMAD 0.014
+with 26 % catastrophic outliers, against 0.0065 and 5.1 % with Roman
+Medium-tier imaging: a single in-band line is alias-degenerate, and the
+colours are what break most of that.
+
+Be precise about what the number measures, though. The published head was
+*trained* with photometry, so `phot=None` hands it its training-mean colours
+rather than removing the information — mean imputation on an
+out-of-distribution input. Read it as "the colour prior carries most of the
+redshift accuracy", not as the grism-only information floor, which would need
+a head trained without colours to measure.
 
 ## Batches
 

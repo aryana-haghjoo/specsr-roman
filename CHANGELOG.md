@@ -3,6 +3,45 @@
 Notable changes to `specsr-roman`. Versions follow [semantic
 versioning](https://semver.org/); until 1.0 the public API may still move.
 
+## [Unreleased]
+
+### Added
+
+- **`tutorials/01_getting_started.ipynb`** — an executable walkthrough from
+  install to the published numbers: one super-resolved spectrum, the redshift
+  PDF and what its secondary modes mean, what photometry buys and why it must
+  be noisy, and line recovery split by recoverability. Runs in about two
+  minutes on a CPU. Committed with its outputs and rendered into the docs from
+  those outputs, so a docs build never re-runs a model or republishes an
+  unreviewed number.
+- **A 512-row tutorial subset** of the dataset, on the Hub under `tutorial/`
+  (3.8 MB). Drawn from the held-out side of the canonical object-id split and
+  sampled uniformly within it, so metrics computed on it are honest
+  out-of-sample numbers over the population's real mix of recoverable and
+  undetectable lines. Built by `scripts/make_tutorial_dataset.py`.
+
+### Changed
+
+- **Roman Medium-tier photometry only, everywhere.** `grids.PHOT_TIERS` now
+  offers `medium` alone, and `grids.MAX_PHOT_BANDS` refuses an explicit band
+  list longer than the three bands that fly with the grism. Wider tiers let a
+  model read the redshift off an effectively complete simulated SED, which
+  scores well and means nothing on the sky.
+- **The photometry ablation is Roman Medium-tier and ships.**
+  `specsr-roman evaluate ablation` now measures the published three-band head
+  with and without its colours and sweeps the photometric noise, and writes
+  `phot_ablation.png` alongside the CSV.
+- **Corrected the grism-only redshift number.** The README, the model card, the
+  quickstart and the `RomanPipeline` docstring reported a figure taken from a
+  masking ablation on a different, superseded head. Measured directly on the
+  published chain, `phot=None` gives **NMAD 0.014 / 26 % catastrophic** over
+  the same 7,334-row held-out split. All four now carry the measured number,
+  and say plainly that `phot=None` is mean imputation on a head trained *with*
+  photometry rather than a grism-only model — so it is not a measurement of
+  the information floor either.
+- Docs render notebooks via `myst-nb` (which replaces `myst-parser` in the
+  `docs` extra and loads it itself).
+
 ## [0.1.0] — 2026-08-26
 
 First packaged release. The science and the trained models predate it; this
@@ -65,6 +104,11 @@ were live in this repository, not in unreleased code.
   not exist. All artefact rules are now anchored to the repository root.
 - Photometry standardisation statistics are computed from the train split
   only, via `data.photometry.standardization_stats`.
+- The photometry ablation no longer reports a "spectrum zeroed" row. Zeroing
+  the spectral channels is out of distribution for SR1 — unlike masking a
+  photometric band, which standardises to a value the network sees constantly
+  — and it scores *worse* than masking every band, measuring the OOD input
+  rather than the photometry's contribution.
 - `np.trapz` / `np.trapezoid` handled across the NumPy 2.0 rename.
 
 ### Known limitations
