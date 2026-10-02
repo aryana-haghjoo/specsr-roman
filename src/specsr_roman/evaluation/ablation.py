@@ -150,7 +150,7 @@ def plot_ablation(rows: list[dict], out_dir: str = "outputs") -> str:
         fig, (a, b) = plt.subplots(1, 2, figsize=(11.0, 4.0))
 
         # -- left: with and without the colours ---------------------------
-        labels = ["grism only\n(colours removed)", "grism + Roman-3\n(F106/F129/F158)"]
+        labels = ["grism only\n(photometry removed)", "grism + three bands\n(Y106, J129, H158)"]
         order = [pair[1], pair[0]]
         y = [100 * r["catastrophic_frac"] for r in order]
         n = [r["dz_nmad"] for r in order]
@@ -164,11 +164,11 @@ def plot_ablation(rows: list[dict], out_dir: str = "outputs") -> str:
         a.set_ylabel("catastrophic outliers [%]")
         a.set_ylim(0, max(y) * 1.42)
         a.grid(axis="y", alpha=0.25, zorder=0)
-        a.set_title("What three broadband colours buy", fontsize=12)
+        a.set_title("With and without the three Roman bands", fontsize=12)
 
         # -- right: the noise sweep ---------------------------------------
         b.plot(sig, cat, "o-", color=COLOR_SR, lw=1.8, ms=5, zorder=3,
-               label="catastrophic rate")
+               label="outlier rate")
         b.axvline(0.05, color="0.35", ls="--", lw=1.0, zorder=2)
         # Lower-right is the only region the two curves leave clear.
         b.annotate("operating point\n0.05 mag", xy=(0.05, cat[2]),
@@ -178,7 +178,7 @@ def plot_ablation(rows: list[dict], out_dir: str = "outputs") -> str:
         b.set_xlabel("photometric noise added [mag]")
         b.set_ylabel("catastrophic outliers [%]")
         b.grid(alpha=0.25, zorder=0)
-        b.set_title("Degrading the three colours", fontsize=12)
+        b.set_title("Degrading the photometry", fontsize=12)
 
         c = b.twinx()
         c.plot(sig, nmad, "s--", color=COLOR_LR, lw=1.3, ms=4, alpha=0.85,

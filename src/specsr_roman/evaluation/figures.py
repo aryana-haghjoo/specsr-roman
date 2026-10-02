@@ -571,8 +571,11 @@ def plot_sn(c):
             ax.set_ylabel('S/N (SR)')
         f_lr = np.mean(sn_lr > 10) if sn_lr.size else 0
         f_sr = np.mean(sn_sr > 10) if sn_sr.size else 0
-        ax.text(0.04, 0.95, f'f(S/N>10): LR={f_lr:.2f}, SR={f_sr:.2f}',
-                transform=ax.transAxes, va='top', fontsize=9)
+        # Upper right is the only corner the points leave clear.
+        ax.text(0.96, 0.95,
+                f'$n$ = {sn_lr.size:,}\nf(S/N > 10)\nLR: {f_lr:.2f}   SR: {f_sr:.2f}',
+                transform=ax.transAxes, va='top', ha='right', fontsize=9,
+                bbox=dict(boxstyle='round,pad=0.4', fc='white', ec='0.6', alpha=0.9))
         last = hb
     cb = fig.colorbar(last, ax=axes[0, -1], fraction=0.046, pad=0.04)
     cb.set_label(r'$\log_{10}$(count)', fontsize=9)
@@ -596,7 +599,6 @@ def plot_redshift(c):
     ax.plot([0, hi], [0, hi], '-', color='#1f77b4', lw=1.2)
     ax.set_xlim(0, hi); ax.set_ylim(0, hi)
     ax.set_xlabel('True redshift'); ax.set_ylabel('Predicted redshift')
-    ax.set_title('ZHead (super-res spectrum + Roman 3-band photometry)')
     ax.text(0.04, 0.96,
             f'NMAD: {nmad:.4f}\nMed |dz|/(1+z): {np.median(np.abs(dz)):.4f}\n'
             f'Outlier (>0.15): {100*outl:.2f}%\nN = {len(zt):,}',
@@ -617,7 +619,10 @@ def _highpass(X, sigma_px=25):
 def _psd(X, hp=True):
     Xd = _highpass(X) if hp else X - X.mean(1, keepdims=True)
     P = np.abs(np.fft.rfft(Xd, axis=1)) ** 2
-    return P.mean(0), np.percentile(P, 16, 0), np.percentile(P, 84, 0)
+    # Median, not mean: under 1% of the test spectra (z < 0.25, targets with
+    # normalised peaks in the hundreds) carry >99% of the summed power, so a
+    # mean describes those few objects and sits outside its own 16-84% band.
+    return np.median(P, 0), np.percentile(P, 16, 0), np.percentile(P, 84, 0)
 
 
 def plot_psd(c):

@@ -5,6 +5,8 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-02
+
 ### Added
 
 - **`tutorials/01_getting_started.ipynb`** — an executable walkthrough from
@@ -41,6 +43,21 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
   the information floor either.
 - Docs render notebooks via `myst-nb` (which replaces `myst-parser` in the
   `docs` extra and loads it itself).
+- **The power-spectrum figure plots the median across spectra, not the mean.**
+  Under 1 % of the held-out split (z < 0.25, targets whose normalised peaks
+  reach the hundreds) carries more than 99 % of the summed power, so the mean
+  described those few rows and sat outside its own 16–84 % band. The shaded
+  bands are unchanged.
+- **Figure labels.** The per-line S/N panels report the number of spectra and
+  the S/N > 10 fractions in a box clear of the points; the redshift figure no
+  longer carries a title; the photometry-ablation panels name the bands Y106,
+  J129 and H158 and use "outlier rate".
+
+### Fixed
+
+- The README credited the OpenUniverse2024 simulation to "Troxel et al.
+  (2025)". The paper's first author is the OpenUniverse collaboration; it is
+  now cited as OpenUniverse et al. (2025).
 
 ## [0.1.0] — 2026-08-26
 

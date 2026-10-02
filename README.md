@@ -282,7 +282,7 @@ version DOI on that record to pin the exact release you ran. `CITATION.cff`
 carries both, and GitHub's "Cite this repository" button renders it as BibTeX
 or APA.
 
-Simulation products: Troxel et al. (2025), OpenUniverse2024; Wang et al.
+Simulation products: OpenUniverse et al. (2025), OpenUniverse2024; Wang et al.
 (2022) for the Roman GRS grism configuration.
 
 ## License

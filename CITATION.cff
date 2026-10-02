@@ -29,14 +29,15 @@ authors:
     email: ahagh010@ucr.edu
     affiliation: >-
       Department of Physics and Astronomy, University of California Riverside
-version: 0.1.0
-date-released: "2026-08-26"
+version: 0.2.0
+date-released: "2026-10-02"
 license: MIT
 repository-code: "https://github.com/aryana-haghjoo/specsr-roman"
 url: "https://aryana-haghjoo.github.io/specsr-roman/"
-# The CONCEPT DOI, which always resolves to the newest version. The DOI for
-# this particular release is 10.5281/zenodo.22119690; bump `identifiers`
-# below on each release, but leave `doi` alone.
+# The CONCEPT DOI, which always resolves to the newest version. Zenodo mints
+# the DOI of a particular release only after its tag is published, so each
+# version DOI is added to `identifiers` below in the commit after its release;
+# leave `doi` alone.
 doi: "10.5281/zenodo.22119689"
 identifiers:
   - type: doi
