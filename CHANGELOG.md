@@ -9,6 +9,14 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 
 ### Added
 
+- **Three figures that replace tables**, rendered by
+  `specsr-roman evaluate figures` from the same frozen cache as the rest:
+  `sample` (redshift distribution by strong-line content, and the best-line
+  S/N distribution with the four recoverability bins), `recovery` (recovered
+  line-flux fraction per bin for SR1 and the full chain, medians with 16–84 %
+  ranges) and `zbreak` (redshift scatter and outlier rate by line content and
+  by recoverability).
+
 - **`tutorials/01_getting_started.ipynb`** — an executable walkthrough from
   install to the published numbers: one super-resolved spectrum, the redshift
   PDF and what its secondary modes mean, what photometry buys and why it must

@@ -4,7 +4,12 @@ Every figure reads the frozen prediction cache (:mod:`specsr_roman.evaluation.ca
 rather than a live model, so a plotting tweak can never quietly change a
 result.
 
-The five figures, and what each is for:
+The figures, and what each is for:
+
+``sample``
+    What the held-out sample contains: the redshift distribution split by how
+    many strong lines fall in the grism band, and the distribution of the best
+    line's integrated S/N with the four recoverability bins marked.
 
 ``spectra``
     HR / LR / SR2 overlay with a zoom inset on the blended complex. The inset
@@ -22,6 +27,13 @@ The five figures, and what each is for:
 ``psd``
     Signal and residual power spectra --- where in spatial frequency the
     reconstruction adds information, and where it only adds noise.
+``recovery``
+    Recovered line-flux fraction in each recoverability bin, SR1 against the
+    full chain. The headline result: the fraction should rise with what the
+    data support and sit at zero where the line is undetectable.
+``zbreak``
+    Redshift scatter and outlier rate split by line content and by
+    recoverability --- where the accuracy comes from.
 
 The palette is shared with the JWST companion paper so HR/LR/SR mean the same
 colour in both, and it survives greyscale printing.
@@ -35,8 +47,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
+from ..lines import STRONG_LINES_AA
+from .metrics import RECOVERABILITY_BINS, redshift_summary
+
 __all__ = ["FigureStyle", "plot_spectra", "plot_river", "plot_sn",
-           "plot_redshift", "plot_psd", "make_figures", "FIGURES"]
+           "plot_redshift", "plot_psd", "plot_sample", "plot_recovery",
+           "plot_redshift_breakdown", "make_figures", "FIGURES"]
 
 # Strong lines (rest-frame micron) for tracks, S/N and insets.
 LINES = {r"[OII]": 0.3727, r"H$\beta$": 0.4861, r"[OIII]": 0.5007,
@@ -654,6 +670,145 @@ def plot_psd(c):
     _save(fig, 'psd.png')
 
 
+# ------------------- 6-8. the sample and the binned results -------------------
+_BIN_LABELS = {"unrecoverable": "unrecoverable\n(S/N < 1)",
+               "marginal": "marginal\n(1 - 3)",
+               "good": "good\n(3 - 6)",
+               "strong": "strong\n(> 6)"}
+
+
+def _n_strong_in_band(wl, z):
+    """Number of the four strong optical lines inside the band, per row."""
+    return sum(((1 + z) * w * 1e-4 > wl[0]) & ((1 + z) * w * 1e-4 < wl[-1])
+               for w in STRONG_LINES_AA)
+
+
+def plot_sample(c):
+    wl, zt = c['wl_um'], c['z_true']
+    best = c['line_snr'].max(axis=1)
+    nl = _n_strong_in_band(wl, zt)
+
+    fig, (a, b) = plt.subplots(1, 2, figsize=(12, 4.2))
+
+    # -- left: redshift, split by how many strong lines the band contains --
+    edges = np.linspace(0, max(3.0, zt.max()), 46)
+    groups = [(nl == 0, 'no strong line in band', '0.72'),
+              (nl == 1, 'one strong line', COLOR_SR),
+              (nl >= 2, 'two or more', COLOR_HR)]
+    a.hist([zt[m] for m, _, _ in groups], bins=edges, stacked=True,
+           color=[col for _, _, col in groups],
+           label=[lab for _, lab, _ in groups])
+    a.set_xlim(edges[0], edges[-1])
+    a.set_xlabel(r'Redshift $z$'); a.set_ylabel('Number of spectra')
+    a.legend(frameon=False, fontsize=10)
+
+    # -- right: the best line's integrated S/N, with the four bins --
+    lo, hi = 0.03, 100.0
+    x = np.clip(best, lo, hi)                    # pile the tails on the ends
+    a_edges = np.logspace(np.log10(lo), np.log10(hi), 50)
+    shades = ['0.90', '0.97', '0.90', '0.97']
+    for (name, (blo, bhi)), shade in zip(RECOVERABILITY_BINS.items(), shades,
+                                         strict=True):
+        blo, bhi = max(blo, lo), min(bhi, hi)
+        b.axvspan(blo, bhi, color=shade, zorder=0)
+        frac = np.mean((best >= RECOVERABILITY_BINS[name][0])
+                       & (best < RECOVERABILITY_BINS[name][1]))
+        b.text(np.sqrt(blo * bhi), 0.97, f'{name}\n{100 * frac:.0f}%',
+               transform=b.get_xaxis_transform(), ha='center', va='top',
+               fontsize=9.5)
+    b.hist(x, bins=a_edges, color=COLOR_LR, zorder=2)
+    b.set_xscale('log'); b.set_xlim(lo, hi)
+    b.set_ylim(0, b.get_ylim()[1] * 1.28)        # headroom for the labels
+    b.set_xlabel('Integrated S/N of the best line in the grism spectrum')
+    b.set_ylabel('Number of spectra')
+    fig.tight_layout()
+    _save(fig, 'sample.png')
+
+
+def _recovery_ratios(pred, hr, rows, line_thresh=5.0):
+    """Per-row recovered flux fraction over the target's line pixels."""
+    out = []
+    for i in rows:
+        line = hr[i] > line_thresh
+        total = hr[i][line].sum()
+        if line.any() and total != 0:
+            out.append(pred[i][line].sum() / total)
+    return np.asarray(out)
+
+
+def plot_recovery(c):
+    sr1, sr2, hr = c['sr1'], c['sr2'], c['hr']
+    best = c['line_snr'].max(axis=1)
+
+    fig, ax = plt.subplots(figsize=(6.4, 4.6))
+    xs = np.arange(len(RECOVERABILITY_BINS))
+    stages = ((sr1, 'SR1', COLOR_LR, 'o', -0.09), (sr2, 'SR2 (full pipeline)',
+                                                   COLOR_SR, 's', +0.09))
+    counts = []
+    for pred, lab, col, mk, off in stages:
+        med, lo, hi = [], [], []
+        for blo, bhi in RECOVERABILITY_BINS.values():
+            r = _recovery_ratios(pred, hr, np.where((best >= blo) & (best < bhi))[0])
+            p16, p50, p84 = np.percentile(r, [16, 50, 84])
+            med.append(p50); lo.append(p50 - p16); hi.append(p84 - p50)
+            if pred is sr2:
+                counts.append(len(r))
+        ax.errorbar(xs + off, med, yerr=[lo, hi], fmt=mk + '-', color=col,
+                    lw=1.6, ms=7, capsize=3.5, label=lab, zorder=3)
+    ax.axhline(1.0, color='0.35', ls='--', lw=1.0, zorder=1)
+    ax.axhline(0.0, color='0.35', ls=':', lw=1.0, zorder=1)
+    ax.text(xs[0] - 0.42, 1.02, 'full recovery', fontsize=9, color='0.35',
+            va='bottom')
+    ax.text(xs[-1] + 0.42, 0.02, 'nothing drawn', fontsize=9, color='0.35',
+            va='bottom', ha='right')
+    ax.set_xticks(xs)
+    ax.set_xticklabels([f'{_BIN_LABELS[k]}\n$n$ = {n:,}'
+                        for k, n in zip(RECOVERABILITY_BINS, counts, strict=True)])
+    ax.set_xlim(xs[0] - 0.5, xs[-1] + 0.5)
+    ax.set_xlabel('Line recoverability')
+    ax.set_ylabel('Recovered / true line flux')
+    ax.legend(frameon=False, fontsize=10, loc='center left')
+    fig.tight_layout()
+    _save(fig, 'line_recovery.png')
+
+
+def plot_redshift_breakdown(c):
+    wl, zt, zp = c['wl_um'], c['z_true'], c['z_pred']
+    best = c['line_snr'].max(axis=1)
+    nl = _n_strong_in_band(wl, zt)
+
+    groups = [('all', np.ones(len(zt), bool), '0.35'),
+              ('no strong\nline', nl == 0, COLOR_HR),
+              ('one\nline', nl == 1, COLOR_HR),
+              ('two or\nmore', nl >= 2, COLOR_HR)]
+    snr_labels = ('S/N < 1', '1 - 3', '3 - 6', '> 6')
+    groups += [(lab, (best >= lo) & (best < hi), COLOR_SR)
+               for lab, (lo, hi) in zip(snr_labels, RECOVERABILITY_BINS.values(),
+                                        strict=True)]
+    stats = [redshift_summary(zp[m], zt[m]) for _, m, _ in groups]
+    xs = np.array([0, 1.4, 2.4, 3.4, 4.8, 5.8, 6.8, 7.8])
+    cols = [col for _, _, col in groups]
+
+    fig, (a, b) = plt.subplots(1, 2, figsize=(12, 4.2))
+    # Points, not bars: on a logarithmic axis a bar has no meaningful base.
+    nmad = [s['nmad'] for s in stats]
+    a.vlines(xs, min(nmad) / 2, nmad, color=cols, lw=1.2, alpha=0.5, zorder=2)
+    a.scatter(xs, nmad, s=70, color=cols, zorder=3)
+    a.set_yscale('log'); a.set_ylim(min(nmad) / 2, max(nmad) * 2)
+    a.set_ylabel(r'$\sigma_{\rm NMAD}$')
+    b.bar(xs, [100 * s['catastrophic_frac'] for s in stats], width=0.72,
+          color=cols, zorder=3)
+    b.set_ylabel('Outlier rate [%]')
+    for ax in (a, b):
+        ax.set_xticks(xs)
+        ax.set_xticklabels([g[0] for g in groups], fontsize=9)
+        ax.grid(axis='y', alpha=0.25, zorder=0)
+        for x0, x1, lab in ((1.4, 3.4, 'by strong lines in band'),
+                            (4.8, 7.8, 'by S/N of the best line')):
+            ax.text(0.5 * (x0 + x1), 1.02, lab, ha='center', va='bottom',
+                    fontsize=9.5, transform=ax.get_xaxis_transform())
+    fig.tight_layout()
+    _save(fig, 'redshift_breakdown.png')
 
 
 # ---------------------------------------------------------------------------
@@ -662,6 +817,9 @@ def plot_psd(c):
 FIGURES = {
     "spectra": plot_spectra,
     "redshift": plot_redshift,
+    "zbreak": plot_redshift_breakdown,
+    "sample": plot_sample,
+    "recovery": plot_recovery,
     "river": plot_river,
     "psd": plot_psd,
     "sn": plot_sn,
