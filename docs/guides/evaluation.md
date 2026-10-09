@@ -126,7 +126,10 @@ calibrated model should do when the data says nothing. Bin by detectability and
 judge `r` only where the information is present. Aggregate `r` is dominated by
 undetected lines and understates a good model.
 
-The published SR1 and the full pipeline both score r ≈ 0.30 on OU2024 (936
-held-out sources with a line above S/N 5), rising from 0.22 just above S/N 5 to
-0.41 for the best-detected third. Pass `--zhead` and `--sr2` to audit the full
-pipeline.
+On the 3,242 held-out spectra with a detected line (S/N of 2 or more), the
+published SR1 scores r ≈ 0.25 and the full pipeline r ≈ 0.16. By recoverability
+bin (marginal, good, strong) SR1 gives 0.27, 0.18, 0.33 and the full pipeline
+0.12, 0.13, 0.33: SR2 adds flux to faint lines that is mostly the expected
+flux, not flux read from the input. Pass `--zhead` and `--sr2` to audit the
+full pipeline; the command writes `outputs/prior_dominance.json` and
+`outputs/figures/response.png`.

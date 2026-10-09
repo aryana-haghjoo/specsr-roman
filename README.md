@@ -1,7 +1,6 @@
 # specsr-roman
 
-**Physics-informed, recoverability-calibrated super-resolution of Roman grism
-spectra.**
+**Physics-informed super-resolution of Roman grism spectra.**
 
 [![CI](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml/badge.svg)](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://aryana-haghjoo.github.io/specsr-roman/)
@@ -138,10 +137,12 @@ spectra with a detected line exactly one line is detected, and it is Hα (with
 [N II]) in 93 %.
 
 **Prior-dominance audit** (`specsr-roman evaluate prior`): response exponent
-r = 0.30 for the published SR1 and for the full pipeline, on the 936 held-out
-sources with a line above S/N 5 — 1 means the model reads line strengths from
-the data, 0 means it recites the training manifold. It rises from 0.22 just
-above S/N 5 to 0.41 for the best-detected third. See
+r = 0.16 for the full pipeline and 0.25 for SR1 alone, on the 3,242 held-out
+spectra with a detected line — 1 means the model reads line strengths from
+the data, 0 means it recites the training manifold. For strongly detected
+lines both reach 0.33. The model finds and sharpens the lines the data
+contain, but their strengths still lean on the simulation, so line fluxes and
+ratios from the output are not yet measurements. See
 [Limitations](#limitations).
 
 ---
@@ -259,8 +260,8 @@ Stated plainly, because they bound what the numbers mean.
 - **Results are on the Diffsky manifold.** Targets are simulated SEDs with
   simulation line physics. A model can score well by learning that manifold
   rather than by measuring anything, and no reconstruction metric distinguishes
-  the two. The prior-dominance audit puts the published chain at r ≈ 0.30 — it
-  reads the data about a third of the time it could.
+  the two. The prior-dominance audit puts the published chain at r ≈ 0.16: a line
+  doubled in the input grows by about 12 % in the output.
 - **Anti-prior augmentation is implemented but not used.** It raises r to ~0.51
   at fixed detectability while suppressing absolute line recovery, so the
   published SR1 is unaugmented. A version that jitters only *recoverable*

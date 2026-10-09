@@ -8,10 +8,21 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 ### Added
 
 - `specsr-roman evaluate prior` audits the full pipeline as well as SR1 when
-  given `--zhead` and `--sr2`, and reports the response exponent in three
-  equal-count bins of best-line S/N as well as overall. On the 936 held-out
-  sources with a line above S/N 5 both stages score 0.30, rising from 0.22 to
-  0.41 with detectability.
+  given `--zhead` and `--sr2`, reports the response exponent per
+  recoverability bin, and writes `outputs/prior_dominance.json` and the
+  `response` figure.
+
+### Changed
+
+- **The prior-dominance audit uses every detected line.** Sources enter at an
+  integrated S/N of 2, the threshold used everywhere else, and no longer at 5.
+  On the 3,242 held-out spectra with a detected line the response exponent is
+  0.25 for SR1 and 0.16 for the full pipeline (0.33 for both in the strong
+  bin). The 0.28 quoted with 0.3.0 was SR1 on the first 500 sources above
+  S/N 5.
+- The project is described as physics-informed super-resolution; the phrase
+  "recoverability-calibrated" is dropped, since the response test shows that
+  line strengths largely follow the simulation.
 
 ## [0.3.0] — 2026-10-09
 

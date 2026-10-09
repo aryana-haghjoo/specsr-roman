@@ -25,9 +25,11 @@ by the detectability of the injected change, and judge ``r`` only where the
 information is physically present. Aggregate ``r`` is dominated by
 unrecoverable cases and understates a good model.
 
-Measured on this project, on the 936 held-out sources with a line above
-S/N 5: 0.30 for the published SR1 and 0.30 for the full pipeline, rising from
-0.22 at S/N 5-6 to 0.41 above S/N 8. SR2 does not change the response.
+Measured on this project, on the 3,242 held-out spectra with a detected line
+(S/N >= 2): 0.25 for the published SR1 and 0.16 for the full pipeline. By
+recoverability bin (marginal, good, strong): 0.27, 0.18, 0.33 for SR1 and
+0.12, 0.13, 0.33 for the full pipeline. SR2 lowers the response where lines
+are faint, which is where it adds the most flux.
 Anti-prior augmentation raised an earlier SR1 from 0.14 to 0.51 at fixed
 detectability, at the cost of absolute line recovery, which is why the
 published SR1 is the unaugmented one and this remains open work.
@@ -49,8 +51,9 @@ from ..data import (
                       normalize,
 )
 from ..grids import GRISM_FWHM_AA
+from .metrics import MIN_BEST_LINE_SNR, RECOVERABILITY_BINS
 
-__all__ = ["PriorDominanceConfig", "run_prior_dominance"]
+__all__ = ["PriorDominanceConfig", "run_prior_dominance", "plot_response"]
 
 # np.trapz was renamed in NumPy 2.0; support both so the package does not
 # force a NumPy major version on its users.
@@ -61,7 +64,10 @@ _trapz = getattr(np, "trapezoid", None) or np.trapz  # noqa: NPY201
 class PriorDominanceConfig:
     data: str = "data/dataset/ou2024_h10307_dataset.npz"
     sr1_ckpt: str = "sr1_ou2024_v6"
-    snr_min: float = 5.0            # only sources with a usable spectrum
+    #: Sources enter with a detected line, at the threshold used everywhere
+    #: else (it was 5 until 2026-10-09, which left the marginal and most of the
+    #: good bin out of the audit).
+    snr_min: float = MIN_BEST_LINE_SNR
     min_recovered_frac: float = 0.2  # line must be recovered at all
     factors: tuple[float, ...] = (0.5, 2.0)
     max_sources: int = 500
@@ -71,6 +77,8 @@ class PriorDominanceConfig:
     #: and held fixed, so the response is to the spectrum alone.
     zhead_ckpt: str | None = None
     sr2_ckpt: str | None = None
+    #: Where to write the summary; the paper's macros and figure read it.
+    out_json: str | None = None
     phot_tier: str = "medium"
     eval_mag_err: float = 0.05
     noise_seed: int = 0
@@ -114,7 +122,7 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
     """Run the audit on SR1, and on the full pipeline when it is configured.
 
     Returns the response exponents per stage (``summary["sr1"]``,
-    ``summary["sr2"]``), each per factor, overall and by best-line S/N. The
+    ``summary["sr2"]``), each per factor, overall and by recoverability bin. The
     SR1 entries are repeated at the top level.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -192,8 +200,9 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
         return float(np.dot(hr_s[ok], lr[ok])) / denom
 
     stages = ("sr1", "sr2") if chain else ("sr1",)
-    # per stage: (factor, best-line S/N, r) for every usable source
-    records: dict[str, list[tuple[float, float, float]]] = {k: [] for k in stages}
+    # per stage: (factor, best-line S/N, r, source row) for every usable source
+    records: dict[str, list[tuple[float, float, float, float]]] = {
+        k: [] for k in stages}
     n_used = 0
     for i in cand:
         hr = np.nan_to_num(ds.hi_raw[i]).astype(np.float64)
@@ -239,14 +248,15 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
                     continue
                 r = np.log(L_pred_p / L_pred0[k]) / np.log(f)
                 if np.isfinite(r):
-                    records[k].append((float(f), float(best_snr[i]), float(r)))
+                    records[k].append((float(f), float(best_snr[i]), float(r),
+                                       float(i)))
         n_used += 1
 
     print(f"usable sources (line recovered above "
           f"{cfg.min_recovered_frac:.0%} of truth): {n_used}")
     summary: dict = {"n_sources": n_used}
     for k in stages:
-        rec = np.array(records[k]).reshape(-1, 3)
+        rec = np.array(records[k]).reshape(-1, 4)
         out: dict = {"per_factor": {}, "by_snr": []}
         print(f"\n{k.upper()}")
         for f in cfg.factors:
@@ -267,17 +277,72 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
         print(f"  OVERALL response exponent: {out['overall_median_r']:.3f} "
               "(1 = reads the data, 0 = recites the prior)")
         # The aggregate mixes lines the data constrain well with lines they
-        # barely constrain. Split by detectability, in equal-count bins.
-        if len(rec) >= 30:
-            edges = np.quantile(rec[:, 1], [0.0, 1 / 3, 2 / 3, 1.0])
-            for lo, hi in zip(edges[:-1], edges[1:], strict=True):
-                m = (rec[:, 1] >= lo) & (rec[:, 1] <= hi)
-                row = {"snr_lo": float(lo), "snr_hi": float(hi),
-                       "n": int(m.sum()), "median": float(np.median(rec[m, 2]))}
-                out["by_snr"].append(row)
-                print(f"  best-line S/N {lo:5.1f} - {hi:5.1f}: N={row['n']:4d}  "
-                      f"median r {row['median']:.3f}")
+        # barely constrain. Split by the recoverability bin of the best line.
+        for name, (lo, hi) in RECOVERABILITY_BINS.items():
+            m = (rec[:, 1] >= lo) & (rec[:, 1] < hi)
+            if m.sum() < 10:
+                continue
+            row = {"bin": name, "n": int(len(np.unique(rec[m, 3]))),
+                   "median": float(np.median(rec[m, 2])),
+                   "p25": float(np.percentile(rec[m, 2], 25)),
+                   "p75": float(np.percentile(rec[m, 2], 75))}
+            out["by_snr"].append(row)
+            print(f"  {name:9s} sources={row['n']:5d}  median r {row['median']:.3f}  "
+                  f"p25/p75 = {row['p25']:.3f}/{row['p75']:.3f}")
         summary[k] = out
     # the SR1 numbers stay at the top level, where earlier callers read them
     summary.update(summary["sr1"])
+    if cfg.out_json:
+        import json
+        os.makedirs(os.path.dirname(os.path.abspath(cfg.out_json)), exist_ok=True)
+        with open(cfg.out_json, "w") as fh:
+            json.dump(summary, fh, indent=2)
+        print(f"wrote {cfg.out_json}")
     return summary
+
+
+def plot_response(summary: dict, outdir: str = "outputs/figures",
+                  name: str = "response.png") -> str:
+    """Response exponent per recoverability bin, SR1 against the full pipeline.
+
+    Points are medians over the sources of a bin and bars span the quartiles.
+    The two reference lines are the two things a model can be doing: reading
+    the line strength from its input (1) or drawing the same line whatever the
+    input says (0).
+    """
+    import matplotlib.pyplot as plt
+
+    from .figures import COLOR_LR, COLOR_SR, FigureStyle, _save
+
+    stages = [("sr1", "SR1", COLOR_LR, "o", -0.09),
+              ("sr2", "SR2 (full pipeline)", COLOR_SR, "s", +0.09)]
+    with FigureStyle():
+        fig, ax = plt.subplots(figsize=(6.4, 4.6))
+        labels = None
+        for key, lab, col, mk, off in stages:
+            rows = summary.get(key, {}).get("by_snr", [])
+            if not rows:
+                continue
+            xs = np.arange(len(rows))
+            med = np.array([r["median"] for r in rows])
+            lo = med - np.array([r["p25"] for r in rows])
+            hi = np.array([r["p75"] for r in rows]) - med
+            ax.errorbar(xs + off, med, yerr=[lo, hi], color=col, marker=mk,
+                        ms=8, lw=1.8, capsize=4, label=lab)
+            labels = [f"{r['bin']}\n$n$ = {r['n']:,}" for r in rows]
+        ax.axhline(1.0, color="0.3", lw=1.0, ls="--")
+        ax.axhline(0.0, color="0.3", lw=1.0, ls=":")
+        ax.text(0.99, 1.03, "follows the input", fontsize=9.5, color="0.3",
+                ha="right", transform=ax.get_yaxis_transform())
+        ax.text(0.99, -0.10, "ignores the input", fontsize=9.5, color="0.3",
+                ha="right", transform=ax.get_yaxis_transform())
+        if labels:
+            ax.set_xticks(np.arange(len(labels)), labels)
+        ax.set_xlim(-0.5, (len(labels) if labels else 3) - 0.5)
+        ax.set_ylim(-0.15, 1.25)
+        ax.set_xlabel("Line recoverability")
+        ax.set_ylabel(r"Response exponent $r$")
+        ax.legend(frameon=False, fontsize=10, loc="upper left",
+                  bbox_to_anchor=(0.0, 0.93))
+        fig.tight_layout()
+        return _save(fig, name, outdir=outdir)

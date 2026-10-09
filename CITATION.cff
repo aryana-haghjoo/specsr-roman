@@ -19,7 +19,7 @@ abstract: >-
   A three-stage, physics-informed deep learning framework that super-resolves
   Roman Space Telescope slitless grism spectra, with a photometry-conditioned
   redshift head that breaks the single-line alias degeneracy and an
-  attention-based refinement stage calibrated on line recoverability.
+  attention-based refinement stage trained with line-recoverability losses.
 type: software
 authors:
   - given-names: Aryana

@@ -1,7 +1,6 @@
 # specsr-roman
 
-Physics-informed, recoverability-calibrated super-resolution of Roman grism
-spectra.
+Physics-informed super-resolution of Roman grism spectra.
 
 Roman's High Latitude Spectroscopic Survey will deliver slitless grism spectra
 (R ≈ 461 λ/µm over 1–1.93 µm) for millions of emission-line galaxies. At that

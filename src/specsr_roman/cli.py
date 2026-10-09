@@ -154,7 +154,9 @@ def build_parser() -> argparse.ArgumentParser:
     pd.add_argument("--zhead", default=None,
                     help="with --sr2: audit the full pipeline as well")
     pd.add_argument("--sr2", default=None)
-    pd.add_argument("--max-sources", type=int, default=500)
+    pd.add_argument("--max-sources", type=int, default=100000)
+    pd.add_argument("--json", default="outputs/prior_dominance.json")
+    pd.add_argument("--outdir", default="outputs/figures")
 
     sub.add_parser("info", help="environment and canonical checkpoints")
     return p
@@ -344,7 +346,12 @@ def _cmd_evaluate(args) -> int:
             kwargs["sr1_ckpt"] = args.sr1
         if args.zhead and args.sr2:
             kwargs.update(zhead_ckpt=args.zhead, sr2_ckpt=args.sr2)
-        run_prior_dominance(PriorDominanceConfig(**kwargs))
+        import matplotlib
+        matplotlib.use("Agg")
+        from .evaluation.prior_dominance import plot_response
+        kwargs["out_json"] = args.json
+        plot_response(run_prior_dominance(PriorDominanceConfig(**kwargs)),
+                      outdir=args.outdir)
         return 0
 
     return 1
