@@ -318,7 +318,7 @@ def test_sed_library_converts_fnu_to_flambda(tmp_path):
     A spectrum flat in f_nu must come out falling as lambda^-2. Read as
     f_lambda instead, every target is 3.7 times too red across the grism band.
     """
-    import h5py
+    h5py = pytest.importorskip("h5py")
 
     from specsr_roman.extraction import SEDLibrary
     gid = 10307000000002
