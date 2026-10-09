@@ -1,0 +1,35 @@
+# ZHead with Rubin: Roman F106/F129/F158 plus Rubin ugrizy, ten-year coadd.
+#
+#   specsr-roman train zhead --config configs/zhead_rubin_y10.yaml
+#
+# phot_tier: medium_rubin == OU2024 indices 0-5 and 8, 9, 11. The Rubin bands
+# carry the sky-limited noise of the coadd on top of the 0.05 mag applied to
+# every band; rubin_depth_offset is magnitudes shallower than ten years.
+# Everything else matches configs/zhead.yaml, so the two heads differ only in
+# the photometry they are given.
+data: data/dataset/ou2024_h10307_dataset.npz
+sr1_ckpt: sr1_ou2024_v6
+epochs: 150
+
+arch: clf
+hidden_dim: 64
+num_blocks: 4
+dropout: 0.1
+n_heads: 8
+
+n_bins: 310
+z_lo: 0.0
+z_hi: 3.1
+label_sigma: 0.03
+refine_window: 8
+
+use_phot: true
+phot_tier: medium_rubin
+rubin_depth_offset: 0.0
+phot_mag_err: 0.05
+phot_eval_mag_err: 0.05
+
+batch_size: 32
+lr: 3.0e-4
+weight_decay: 1.0e-5
+out_prefix: zhead_ou2024_roman_med3_rubin_y10

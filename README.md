@@ -1,7 +1,7 @@
 # specsr-roman
 
-**Physics-informed super-resolution of Roman grism spectra — recovering
-emission lines without inventing them.**
+**Physics-informed, recoverability-calibrated super-resolution of Roman grism
+spectra.**
 
 [![CI](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml/badge.svg)](https://github.com/aryana-haghjoo/specsr-roman/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://aryana-haghjoo.github.io/specsr-roman/)
@@ -96,12 +96,12 @@ sr2_ou2024_v5_romanonly`, evaluated on the held-out object-id split of the
 OU2024 dataset (N = 7,334 spectra, 3,098 galaxies), with 0.05 mag photometric
 noise applied at evaluation.
 
-**Redshift**
+**Redshift** — every held-out spectrum, no cut on signal-to-noise
 
-| Configuration | NMAD | median \|Δz\|/(1+z) | catastrophic |
-|---|---|---|---|
-| Grism + Roman Medium (F106/F129/F158), noisy — **deployable** | **0.0065** | 0.0047 | **5.1 %** |
-| The same chain called with `phot=None` | 0.014 | 0.0095 | 26 % |
+| Configuration | NMAD | catastrophic |
+|---|---|---|
+| Grism + Roman Medium (F106/F129/F158), noisy — **deployable** | **0.0043** | **5.0 %** |
+| The same chain called with `phot=None` | 0.0053 | 17 % |
 
 The deployable row uses only the imaging that actually ships with the HLWAS
 grism, with realistic noise at train *and* eval. Three broadband colours break
@@ -113,31 +113,32 @@ it is **not** the grism-only information floor. The head was trained with
 photometry, so passing `None` feeds it its training-mean colours: mean
 imputation on an out-of-distribution input rather than a clean ablation of the
 information. A head actually trained without colours is a separate experiment,
-and has not been run. The floor itself is set by physics rather than by
-architecture — with one line in band the identification is genuinely
-alias-degenerate, and ~37 % catastrophic is what that allows.
+and has not been run.
 
 Both rows come from `specsr-roman evaluate ablation`, which measures the
 published head with and without its three colours and sweeps the photometric
 noise. Every configuration it reports uses those three bands and no others.
 
-**Line amplitude recovery** — median recovered flux fraction, split by whether
-the line was recoverable from the LR data at all:
+**Line amplitude recovery** — median recovered flux fraction of the detected
+lines, split by how well the best line is detected. The lines are judged only
+where they are detected, at an integrated S/N of at least 2 in the
+single-exposure grism data: 3,283 of the 7,334 spectra have such a line. Below
+that the data carry no strong signal, and nothing is concluded about what the
+model draws there.
 
 | Recoverability (integrated line S/N) | n | SR1 | SR2 |
 |---|---|---|---|
-| unrecoverable (< 1) | 1,243 | −0.01 | **0.03** |
-| marginal (1–3) | 1,984 | 0.20 | 0.46 |
-| good (3–6) | 1,077 | 0.61 | 0.81 |
-| strong (> 6) | 387 | 0.67 | 0.85 |
+| marginal (2–3) | 1,100 | 0.63 | 0.87 |
+| good (3–6) | 1,313 | 0.81 | 0.92 |
+| strong (> 6) | 652 | 0.80 | 0.89 |
 
-Read the first row first. SR2 sharpens recoverable lines toward truth while
-leaving undetectable ones at ~0.03 of a line it does not draw. A model that
-scored 0.85 in the bottom row and 0.85 in the top would be worthless, and no
-single averaged metric would tell you.
+Wherever a line is detected the full pipeline recovers about 0.9 of its flux,
+and SR2 adds to SR1 in every bin, most in the marginal one. In 92 % of the
+spectra with a detected line exactly one line is detected, and it is Hα (with
+[N II]) in 93 %.
 
 **Prior-dominance audit** (`specsr-roman evaluate prior`): response exponent
-r = 0.45 for the published SR1 on OU2024 — 1 means the model reads line
+r = 0.28 for the published SR1 on OU2024 — 1 means the model reads line
 strengths from the data, 0 means it recites the training manifold. See
 [Limitations](#limitations).
 
@@ -195,10 +196,12 @@ is an error rather than a silent no-op.
 
 Two settings deserve a warning if you change them:
 
-- **`phot_tier`** must stay on bands that ship with the grism. `medium` is the
-  only tier, and `grids.MAX_PHOT_BANDS` caps an explicit band list at three:
-  hand a model more bands than the survey delivers alongside a spectrum and it
-  reads the redshift off an effectively complete SED instead of the grism.
+- **`phot_tier`** must stay on bands a survey delivers with the grism.
+  `medium` is the three Roman bands of the published chain; `medium_rubin`
+  adds Rubin *ugrizy* at coadd depth (`rubin_depth_offset`).
+  `grids.MAX_PHOT_BANDS` caps an explicit band list at those nine: hand a
+  model more and it reads the redshift off an effectively complete SED
+  instead of the grism.
 - **`phot_eval_mag_err`** must stay above zero. A metric measured on noiseless
   truth photometry is not a metric.
 
@@ -211,7 +214,7 @@ more than a hedged flat one. SR2's plain NLL is continuum-dominated and
 reliably selects the model that draws nothing.
 
 So SR1 monitors line-flux recovery plus the hallucination penalty, and SR2
-monitors `-recov_amp + lam_hallu * hallu_amp`. **SR2's best epoch is 4.** That
+monitors `-recov_amp + lam_hallu * hallu_amp`. **SR2's best epoch is 3.** That
 is the design working, not a truncated run: hallucination amplitude climbs from
 0.26 to 0.62 by epoch 150 while recoverable amplitude barely moves.
 
@@ -254,8 +257,8 @@ Stated plainly, because they bound what the numbers mean.
 - **Results are on the Diffsky manifold.** Targets are simulated SEDs with
   simulation line physics. A model can score well by learning that manifold
   rather than by measuring anything, and no reconstruction metric distinguishes
-  the two. The prior-dominance audit puts the published SR1 at r ≈ 0.45 — it
-  reads the data about half the time it could.
+  the two. The prior-dominance audit puts the published SR1 at r ≈ 0.28 — it
+  reads the data about a third of the time it could.
 - **Anti-prior augmentation is implemented but not used.** It raises r to ~0.51
   at fixed detectability while suppressing absolute line recovery, so the
   published SR1 is unaugmented. A version that jitters only *recoverable*
@@ -263,7 +266,10 @@ Stated plainly, because they bound what the numbers mean.
 - **Trained on simulations, not sky.** Real Roman spectra will differ. Domain
   adaptation via cross-instrument overlaps (DESI/PFS/JWST) is the intended
   route once real data exists.
-- **The 5.1 % catastrophic rate is physics, not a bug to be tuned away.** With
+- **The lines are not judged below S/N 2.** More than half of the held-out
+  spectra (55 %) have no detected line. The redshift numbers include them; the line-recovery
+  numbers do not, and say nothing about what the model draws there.
+- **The 5 % catastrophic rate is physics, not a bug to be tuned away.** With
   a single line in band the identification is genuinely ambiguous; photometry
   breaks most of it and cannot break all of it.
 

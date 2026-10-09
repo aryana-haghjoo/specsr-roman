@@ -24,8 +24,16 @@ while tuning a plot.
 from specsr_roman.evaluation import line_amplitude_recovery, redshift_summary
 
 redshift_summary(cache["z_pred"], cache["z_true"])
-line_amplitude_recovery(cache["sr2"], cache["hr"], cache["line_snr"])
+line_amplitude_recovery(cache["sr2"], cache["hr"], cache["line_snr"],
+                        z=cache["z_true"], wave_um=cache["wl_um"])
 ```
+
+**Sample statistics use every spectrum; the lines are judged only where they
+are detected.** Redshift accuracy is computed on the whole held-out split. A
+line enters the amplitude metric only if its own integrated S/N reaches 2
+(`MIN_BEST_LINE_SNR`): passing `z` and `wave_um` applies that
+(`detected_line_mask`), and the bins start there. Below it the data carry no
+strong signal, so the metric says nothing about what the model draws there.
 
 `redshift_summary` reports NMAD, median |Δz|/(1+z), catastrophic fraction and
 N. Report all of them: a model can shrink NMAD while pushing more objects past
@@ -37,15 +45,12 @@ the catastrophic threshold, and NMAD alone hides alias structure entirely.
 
 | Bin | Integrated line S/N |
 |---|---|
-| `unrecoverable` | < 1 |
-| `marginal` | 1–3 |
+| `marginal` | 2–3 |
 | `good` | 3–6 |
 | `strong` | > 6 |
 
-**The `unrecoverable` bin is the control.** A well-behaved model scores near
-zero there — it declines to draw what the data cannot support. A model scoring
-0.3 in that bin is inventing lines, however good its `strong` number looks, and
-a single averaged amplitude ratio would not tell you.
+Report the bins separately. A single averaged amplitude ratio mixes marginal
+detections with strong ones and hides how the recovery depends on the data.
 
 `per_line_amplitude_recovery` is the diagnostic companion: same idea, scored
 per transition rather than per row, so a failure can be attributed to a
@@ -83,10 +88,10 @@ photometry enters standardised with statistics baked into the checkpoint,
 "drop a band" is exactly "feed it its training mean" — so this needs no
 retraining.
 
-Removing all three colours takes the published head from NMAD 0.0064 / 5.3 %
-catastrophic to **0.0143 / 26.2 %**, so the colours carry most of the
+Removing all three colours takes the published head from NMAD 0.0043 / 5.0 %
+catastrophic to **0.0053 / 16.6 %**, so the colours carry most of the
 alias-breaking. The same run sweeps the photometric noise: even with
-*noiseless* colours the outlier rate is 3.9 % rather than zero, which is what a
+*noiseless* colours the outlier rate is 4.9 % rather than zero, which is what a
 head reading its spectrum should look like.
 
 :::{warning}
@@ -119,6 +124,6 @@ line regardless.
 low `r` is the *correct* behaviour — falling back on the prior is what a
 calibrated model should do when the data says nothing. Bin by detectability and
 judge `r` only where the information is present. Aggregate `r` is dominated by
-unrecoverable cases and understates a good model.
+undetected lines and understates a good model.
 
-The published SR1 scores r ≈ 0.45 on OU2024.
+The published SR1 scores r ≈ 0.28 on OU2024.

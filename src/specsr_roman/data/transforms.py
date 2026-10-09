@@ -27,6 +27,12 @@ def normalize(x: np.ndarray, eps: float = 1e-25):
     by zero --- though such rows should never reach here; see
     :func:`specsr_roman.data.datasets.RomanFixedGridDataset`.
     """
+    # float64 on purpose: spectra in physical units can be ~1e-24, and their
+    # squares underflow float32, which collapses the std onto the floor and
+    # blows the "normalised" spectrum up by orders of magnitude.
+    # The cast has to come first: `np.nanstd(x, dtype=np.float64)` still
+    # squares in the input's precision.
+    x = np.asarray(x, dtype=np.float64)
     mean = np.nanmean(x)
     std = np.nanstd(x)
     if std < eps:

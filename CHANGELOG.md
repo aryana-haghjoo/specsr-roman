@@ -5,6 +5,106 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-09
+
+**Every number produced with an earlier version is superseded.** The
+OpenUniverse2024 SEDs were read in the wrong flux units, so the dataset, the
+published checkpoints and the prediction cache of 0.1.0 and 0.2.0 describe
+spectra that were too red by a factor of wavelength squared. The dataset has
+been rebuilt and every checkpoint retrained under the same names. The
+pre-fix weights remain on the Hub under `superseded/pre_fnu_fix/`.
+
+### Fixed
+
+- **The SEDs are f_nu.** `galaxy_sed_<healpix>.hdf5` stores flux per unit
+  frequency (skyCatalogs reads it with `flux_type='fnu'`), and
+  `extraction.SEDLibrary` handed it to grizli and to the targets as f_lambda.
+  Inputs and targets shared the error, a continuum 3.7 times too red across
+  1.0-1.93 um, while the catalogue photometry stayed correct. The loader now
+  converts on the native grid. With the right counts in the blue half of the
+  band, 45% of the held-out spectra have a detected line (it was 33%).
+- **Catalogue zero points.** `grids.AB_ZEROPOINT` is now measured from the
+  simulation for every band of the catalogue (`scripts/derive_zeropoints.py`). The Rubin
+  values taken from the lsst/throughputs curves were 0.2-0.5 mag too high, so
+  the Rubin heads of the development tree saw a survey shallower than
+  labelled.
+- **`normalize` computes in float64.** Spectra of order 1e-24 underflowed in
+  float32 and came out "normalised" to values in the hundreds. This affected
+  about 1% of the pre-fix dataset and was the population behind the median
+  power spectrum.
+- SR1 uploads its checkpoint to W&B as an artifact, as the other stages do.
+
+### Results with the retrained chain
+
+Held-out split, 7,334 spectra. Redshift with the three Roman bands: NMAD
+0.0043, 5.0% outliers (0.0065, 5.1% before). Line recovery in the marginal,
+good and strong bins: 0.87, 0.92, 0.89 (0.64, 0.82, 0.87 before); it no longer
+rises across the detected bins. Prior-dominance exponent of SR1: 0.28 (0.45
+before).
+
+### Added
+
+- **Dataset figures.** `specsr-roman evaluate dataset-figures` renders one
+  galaxy followed from the H158 image to the training pair, and the sample
+  against the parent catalogue (`evaluation.dataset_figures`).
+- `scripts/run_chain.sh rubin` trains the Rubin runs, with checkpoints passed
+  as local paths. `specsr-roman evaluate ablation` takes `--sr1` and
+  `--zhead`.
+
+- **A Roman + Rubin photometric tier.** `phot_tier: medium_rubin` feeds the
+  redshift head Rubin *ugrizy* alongside Y106/J129/H158. The Rubin bands carry
+  the sky-limited noise of a coadd of stated depth (`rubin_depth_offset`,
+  `grids.phot_flux_sigma`), the head floors non-detections at one sigma, and
+  the depth travels with the checkpoint (`phot_sigma`). `grids.MAX_PHOT_BANDS`
+  is now nine. Configs: `zhead_rubin_y10`, `zhead_rubin_y1`, `sr2_rubin_y10`.
+- **Band-set comparison** in `specsr-roman evaluate ablation`: the published
+  three-band head against the Rubin heads and a photometry-only control, for
+  the whole split and by redshift and best-line S/N
+  (`phot_band_comparison.{csv,png}`).
+- **Leak controls** in the same command: zero-point offsets and an aperture
+  mismatch applied to the Rubin bands at evaluation
+  (`phot_leak_controls.csv`).
+- **Per-band AB zero points** (`grids.AB_ZEROPOINT`). OU2024 fluxes are photon
+  rates through each bandpass; the H158 anchor applies to H158 only.
+- **`specsr_roman.prior`**: the external-prior analysis (P(z) cache, prior
+  combination, alias and outlier diagnostics), merged from the former
+  `roman_rubin_super_resolution` repository. Scripts in `scripts/prior/`.
+- Training runs upload their best checkpoint to W&B as an artifact, with the
+  resolved config, split record, dataset and upstream-checkpoint hashes and
+  git commit.
+- **The HLSS cosmology selection.** `evaluation.true_line_flux_cgs` measures
+  true H-alpha and [O III] fluxes in erg/s/cm2 from the noiseless targets,
+  calibrated by the catalogue H158 magnitude, and
+  `evaluation.hlss_cosmology_sample` applies the Wang et al. (2022) cut
+  (`HLSS_LINE_FLUX_LIMIT`). The prediction cache stores `ha_flux` and
+  `oiii_flux`; a cache written before them is upgraded on load without
+  running a model. The `sample` figure outlines the selected spectra.
+  `RomanFixedGridDataset` exposes `ab_h158`.
+
+### Changed
+
+- **The lines are judged only where they are detected.** A line is scored,
+  plotted or labelled only if its own integrated S/N in the grism data reaches
+  2 (`evaluation.MIN_BEST_LINE_SNR`, `evaluation.detected_line_mask`; [N II]
+  counts with H-alpha). This applies to line recovery, the S/N comparison and
+  the example spectra. Sample statistics are not cut: redshifts, residuals,
+  power spectra and the band comparison use every held-out spectrum. Training
+  and the prediction cache are unchanged.
+- **`RECOVERABILITY_BINS` has three bins**: marginal 2-3, good 3-6,
+  strong > 6. The `unrecoverable` bin is gone. This is a breaking change for
+  code that indexes the result of `line_amplitude_recovery` by that name.
+- `line_amplitude_recovery` takes `z` and `wave_um`; with them it scores the
+  detected lines only.
+- The S/N comparison figure shows H-alpha and [O III] 5007 on logarithmic
+  axes, and the example-spectra figure labels only detected lines. The sample
+  figure marks the region below S/N 2, and the redshift breakdown and the band
+  comparison bin S/N at 2, 3 and 6.
+- `specsr-roman evaluate ablation` writes `phot_band_zpred.npz` and
+  `phot_band_zpred.png`: predicted against true redshift, one panel per
+  photometric configuration.
+- README, docs, architecture notes and the tutorial notebook (re-executed)
+  quote the new sample, bins and numbers.
+
 ## [0.2.0] — 2026-10-02
 
 ### Added

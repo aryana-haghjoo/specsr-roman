@@ -21,8 +21,10 @@ from ..data import RomanFixedGridDataset, apply_phot_noise, get_or_make_group_sp
 from ..inference.pipeline import build_sr2_input
 from ..lines import LINE_LIST_REST_AA, angstrom_to_micron
 from ..models import constrain_delta
+from .metrics import HALPHA_VAC_AA, OIII_VAC_AA, true_line_flux_cgs
 
-__all__ = ["CacheConfig", "build_prediction_cache", "load_prediction_cache"]
+__all__ = ["CacheConfig", "build_prediction_cache", "load_prediction_cache",
+           "add_true_line_fluxes"]
 
 
 @dataclass
@@ -42,6 +44,35 @@ class CacheConfig:
     sigma_base_um: float = 0.005
     z_topk: int = 3
     out: str = "outputs/pred_cache.npz"
+
+
+def _true_line_fluxes(ds, rows) -> dict[str, np.ndarray]:
+    """True H-alpha and [O III] 5007 fluxes [erg s^-1 cm^-2] for dataset ``rows``."""
+    if ds.ab_h158 is None:
+        raise KeyError("dataset has no `ab_h158` column, so its targets "
+                       "cannot be put on an absolute flux scale")
+    args = (ds.wave_hi, ds.hi_raw[rows], ds.ab_h158[rows], ds.z[rows].numpy())
+    return {"ha_flux": true_line_flux_cgs(*args, HALPHA_VAC_AA),
+            "oiii_flux": true_line_flux_cgs(*args, OIII_VAC_AA)}
+
+
+def add_true_line_fluxes(path: str, data: str = CacheConfig.data) -> str:
+    """Add ``ha_flux`` / ``oiii_flux`` to a cache written before they existed.
+
+    They depend only on the dataset and the split, so this runs no model and
+    leaves every prediction in the cache untouched.
+    """
+    c = dict(np.load(path, allow_pickle=True))
+    ds = RomanFixedGridDataset(data, verbose=False)
+    _, test_idx, _ = get_or_make_group_split(os.path.abspath(data), ds.ids)
+    if (len(test_idx) != len(c["z_true"])
+            or not np.allclose(ds.z[test_idx].numpy(), c["z_true"])):
+        raise RuntimeError(f"{path} was not built from the test split of "
+                           f"{data}; rebuild the cache instead")
+    c.update(_true_line_fluxes(ds, test_idx))
+    np.savez_compressed(path, **c)
+    print(f"added true line fluxes to {path}")
+    return path
 
 
 def build_prediction_cache(cfg: CacheConfig) -> str:
@@ -82,7 +113,8 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
             phot = None
             if has_phot:
                 phot = torch.stack([b[7] for b in batch]).to(device)
-                phot = apply_phot_noise(phot, cfg.eval_mag_err, gen)
+                phot = apply_phot_noise(phot, cfg.eval_mag_err, gen,
+                                        zhead.phot_sigma)
 
             x_in, sr1_mean, z_modes, z_w, _ = build_sr2_input(
                 x_low, sr1, zhead, wl_um, line_rest, run_cfg, device,
@@ -106,7 +138,8 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
 
     os.makedirs(os.path.dirname(os.path.abspath(cfg.out)), exist_ok=True)
     np.savez_compressed(cfg.out, wl_um=wl_um,
-                        **{k: np.concatenate(v) for k, v in cols.items()})
+                        **{k: np.concatenate(v) for k, v in cols.items()},
+                        **_true_line_fluxes(ds, test_idx))
     print(f"wrote {cfg.out}")
     return cfg.out
 
@@ -115,4 +148,7 @@ def load_prediction_cache(path: str, rebuild: bool = False,
                           cfg: CacheConfig | None = None):
     if rebuild or not os.path.exists(path):
         build_prediction_cache(cfg or CacheConfig(out=path))
+    elif "ha_flux" not in np.load(path, allow_pickle=True).files:
+        add_true_line_fluxes(path, (cfg or CacheConfig()).data)
     return np.load(path, allow_pickle=True)
+

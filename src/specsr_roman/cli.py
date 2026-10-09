@@ -116,6 +116,8 @@ def build_parser() -> argparse.ArgumentParser:
     ca.add_argument("--sr1", default=None)
     ca.add_argument("--zhead", default=None)
     ca.add_argument("--sr2", default=None)
+    ca.add_argument("--phot-tier", default=None,
+                    help="band set the ZHead was trained on (default: medium)")
 
     me = ev_sub.add_parser("metrics", help="redshift + line-recovery summary")
     me.add_argument("--cache", default="outputs/pred_cache.npz")
@@ -128,10 +130,23 @@ def build_parser() -> argparse.ArgumentParser:
                     help="comma list: spectra,river,sn,redshift,psd")
     fi.add_argument("--rebuild", action="store_true")
 
+    df = ev_sub.add_parser("dataset-figures",
+                           help="figures of the OpenUniverse2024 dataset")
+    df.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
+    df.add_argument("--outdir", default="outputs/figures")
+    df.add_argument("--which", type=int, default=None,
+                    help="object id (or candidate rank) the example shows")
+    df.add_argument("--rebuild", action="store_true",
+                    help="re-disperse the example detector image (needs grizli)")
+
     ab = ev_sub.add_parser("ablation",
                            help="photometry ablation: with and without colours")
     ab.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
     ab.add_argument("--out-dir", default="outputs")
+    ab.add_argument("--sr1", default=None,
+                    help="SR1 checkpoint (default: the published name, which "
+                         "resolves to the Hub copy)")
+    ab.add_argument("--zhead", default=None, help="Roman three-band ZHead")
 
     pd = ev_sub.add_parser("prior", help="inverse-crime / prior-dominance audit")
     pd.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
@@ -266,7 +281,8 @@ def _cmd_evaluate(args) -> int:
         from .evaluation import CacheConfig, build_prediction_cache
         kwargs = {"data": args.data, "out": args.out}
         for key, val in (("sr1_ckpt", args.sr1), ("zhead_ckpt", args.zhead),
-                         ("sr2_ckpt", args.sr2)):
+                         ("sr2_ckpt", args.sr2),
+                         ("phot_tier", args.phot_tier)):
             if val:
                 kwargs[key] = val
         build_prediction_cache(CacheConfig(**kwargs))
@@ -274,12 +290,14 @@ def _cmd_evaluate(args) -> int:
 
     if args.what == "metrics":
         from .evaluation import line_amplitude_recovery, redshift_summary
+        # redshifts on every spectrum; line recovery on detected lines only
         c = np.load(args.cache, allow_pickle=True)
         out = {
             "redshift": redshift_summary(c["z_pred"], c["z_true"]),
             "line_amplitude": {
-                "sr1": line_amplitude_recovery(c["sr1"], c["hr"], c["line_snr"]),
-                "sr2": line_amplitude_recovery(c["sr2"], c["hr"], c["line_snr"]),
+                k: line_amplitude_recovery(c[k], c["hr"], c["line_snr"],
+                                           z=c["z_true"], wave_um=c["wl_um"])
+                for k in ("sr1", "sr2")
             },
         }
         print(json.dumps(out, indent=2))
@@ -299,9 +317,21 @@ def _cmd_evaluate(args) -> int:
         make_figures(c, which=which, outdir=args.outdir)
         return 0
 
+    if args.what == "dataset-figures":
+        import matplotlib
+        matplotlib.use("Agg")
+        from .evaluation.dataset_figures import make_dataset_figures
+        kw = {} if args.which is None else {"which": args.which}
+        make_dataset_figures(outdir=args.outdir, rebuild=args.rebuild,
+                             dataset=args.data, **kw)
+        return 0
+
     if args.what == "ablation":
         from .evaluation.ablation import AblationConfig, run_ablation
-        run_ablation(AblationConfig(data=args.data, out_dir=args.out_dir))
+        ckpts = {k: v for k, v in (("sr1_ckpt", args.sr1),
+                                   ("zhead_ckpt", args.zhead)) if v}
+        run_ablation(AblationConfig(data=args.data, out_dir=args.out_dir,
+                                    **ckpts))
         return 0
 
     if args.what == "prior":

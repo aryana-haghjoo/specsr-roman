@@ -4,6 +4,11 @@
 #
 #   ./scripts/run_chain.sh                 # all three stages
 #   ./scripts/run_chain.sh zhead sr2       # resume from a stage
+#   ./scripts/run_chain.sh rubin           # the four Rubin runs, after sr1
+#
+# Every stage is handed its upstream checkpoints as local paths. A bare run
+# name would resolve to the Hugging Face copy, which is not the one just
+# trained.
 #
 # Each stage consumes the previous one's best checkpoint, so they cannot be
 # run in parallel. Long runs belong in a detached session:
@@ -56,8 +61,20 @@ for stage in "${stages[@]}"; do
           --sr1-ckpt "$SR1_CKPT" --zhead-ckpt "$ZHEAD_CKPT" \
           --out-dir "$RUNS/sr2"
       ;;
+    rubin)
+      [[ -f "$SR1_CKPT" ]] || { echo "missing $SR1_CKPT — run the sr1 stage first" >&2; exit 1; }
+      for cfg in zhead_rubin_y10 zhead_rubin_y1 zhead_rubin_y10_photonly; do
+        name="$(awk '/^out_prefix:/ {print $2}' "configs/$cfg.yaml")"
+        run "$name" specsr-roman train zhead --config "configs/$cfg.yaml" \
+            --sr1-ckpt "$SR1_CKPT" --out-dir "$RUNS/zhead"
+      done
+      RUBIN_CKPT="$RUNS/zhead/zhead_ou2024_roman_med3_rubin_y10_best.pth"
+      run sr2_ou2024_v5_rubin_y10 specsr-roman train sr2 \
+          --config configs/sr2_rubin_y10.yaml --sr1-ckpt "$SR1_CKPT" \
+          --zhead-ckpt "$RUBIN_CKPT" --out-dir "$RUNS/sr2"
+      ;;
     *)
-      echo "unknown stage: $stage (expected sr1, zhead or sr2)" >&2; exit 2
+      echo "unknown stage: $stage (expected sr1, zhead, sr2 or rubin)" >&2; exit 2
       ;;
   esac
 done

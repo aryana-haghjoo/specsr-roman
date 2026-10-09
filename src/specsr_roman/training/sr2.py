@@ -34,6 +34,7 @@ from .common import (
     ensure_dir,
     finish_wandb,
     init_wandb,
+    log_checkpoint_artifact,
     pick_device,
     set_seed,
     wandb_log,
@@ -83,9 +84,11 @@ def train(cfg: SR2Config) -> dict:
         raise SystemExit("the ZHead expects photometry but the dataset has none")
 
     if full.ids is not None:
-        train_idx, test_idx, _ = get_or_make_group_split(dataset_path, full.ids)
+        train_idx, test_idx, split_path = get_or_make_group_split(
+            dataset_path, full.ids)
     else:
-        train_idx, test_idx, _ = get_or_make_split(dataset_path, len(full))
+        train_idx, test_idx, split_path = get_or_make_split(
+            dataset_path, len(full))
     train_idx, test_idx = filter_split_min_lines(
         train_idx, test_idx, full.z.numpy(), full.wave_hi, cfg.min_strong_lines)
 
@@ -327,6 +330,11 @@ def train(cfg: SR2Config) -> dict:
                             repo_id=cfg.hub_repo)
         except Exception as exc:
             print(f"hub push failed (checkpoint is safe locally): {exc}", flush=True)
+    log_checkpoint_artifact(
+        run, best_path, cfg.run_name or cfg.out_prefix,
+        {**summary, **to_dict(cfg), "dataset": dataset_path,
+         "train_rows": len(train_idx), "test_rows": len(test_idx)},
+        upstream=[cfg.sr1_ckpt, cfg.zhead_ckpt], files=[split_path])
     finish_wandb(run)
     return summary
 

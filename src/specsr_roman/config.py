@@ -131,12 +131,17 @@ class ZHeadConfig:
     refine_window: int = 8
 
     # photometry. `medium` = Roman F106/F129/F158, the bands that actually
-    # ship with the HLWAS grism. `all` is a complete noiseless SED: diagnostic
-    # only, never a model to deploy.
+    # ship with the HLWAS grism; `medium_rubin` adds Rubin ugrizy at coadd
+    # depth. rubin_depth_offset is how many magnitudes shallower than the
+    # ten-year coadd the Rubin bands are (1.25 = one year).
     use_phot: bool = True
     phot_tier: str | None = "medium"
     phot_mag_err: float = 0.05
     phot_eval_mag_err: float = 0.05   # never score against noiseless truth
+    rubin_depth_offset: float = 0.0
+    # False blanks the four spectral channels at train and eval: a
+    # photometry-only control, which says how much of a result is the grism.
+    use_spectrum: bool = True
 
     # optimiser
     epochs: int = 150

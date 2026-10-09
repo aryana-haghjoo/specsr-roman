@@ -10,9 +10,11 @@ from specsr_roman.grids import (
     N_HR,
     N_LR,
     PHOT_BANDS,
+    PHOT_TIERS,
     ROMAN_MEDIUM_BANDS,
     WAVE_HR,
     WAVE_LR,
+    phot_flux_sigma,
     resolve_phot_tier,
 )
 from specsr_roman.lines import (
@@ -66,20 +68,30 @@ def test_angstrom_to_micron_is_float32():
     assert out[0] == pytest.approx(1.0)
 
 
-def test_phot_tiers_index_roman_bands_only():
+def test_phot_tiers_use_only_survey_bands():
     assert len(PHOT_BANDS) == 14
-    # The deployable tiers must never include an LSST band (indices 0-5):
-    # LSST coverage is not guaranteed where Roman's grism will observe.
-    for tier in (ROMAN_MEDIUM_BANDS,):
-        assert all(i >= 6 for i in tier)
-        assert all(PHOT_BANDS[i].startswith("roman_") for i in tier)
+    assert all(PHOT_BANDS[i].startswith("roman_") for i in ROMAN_MEDIUM_BANDS)
+    # The Rubin tier is the Medium tier plus ugrizy and nothing else: the
+    # five Roman bands no grism tier delivers stay out.
+    rubin = PHOT_TIERS["medium_rubin"]
+    assert set(rubin) - set(ROMAN_MEDIUM_BANDS) == set(range(6))
+    assert len(rubin) == MAX_PHOT_BANDS == 9
+
+
+def test_depth_noise_is_rubin_only_and_scales_with_depth():
+    names = [PHOT_BANDS[i] for i in PHOT_TIERS["medium_rubin"]]
+    y10, y1 = phot_flux_sigma(names), phot_flux_sigma(names, 1.25)
+    assert (y10[:6] > 0).all() and (y10[6:] == 0).all()
+    assert y1[:6] / y10[:6] == pytest.approx(10 ** 0.5, rel=1e-4)
+    assert not phot_flux_sigma([PHOT_BANDS[i] for i in ROMAN_MEDIUM_BANDS]).any()
 
 
 def test_resolve_phot_tier_forms():
     assert resolve_phot_tier("medium") == ROMAN_MEDIUM_BANDS
     assert resolve_phot_tier("8,9,11") == (8, 9, 11)
+    assert resolve_phot_tier("medium_rubin") == (0, 1, 2, 3, 4, 5, 8, 9, 11)
     assert resolve_phot_tier(None) is None
-    # More bands than the survey ships with the grism is refused outright.
+    # More bands than any survey tier delivers with the grism is refused.
     with pytest.raises(ValueError, match="ceiling"):
         resolve_phot_tier(",".join(str(b) for b in range(MAX_PHOT_BANDS + 1)))
     with pytest.raises(ValueError):

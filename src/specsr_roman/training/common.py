@@ -18,7 +18,7 @@ import torch
 
 __all__ = ["set_seed", "pick_device", "init_wandb", "wandb_log", "finish_wandb",
            "log_example_spectrum", "log_residual_histograms", "log_z_plots",
-           "ensure_dir", "configure_sdpa_backend"]
+           "ensure_dir", "configure_sdpa_backend", "log_checkpoint_artifact"]
 
 
 def set_seed(seed: int = 42) -> None:
@@ -88,6 +88,59 @@ def wandb_log(run, payload: dict) -> None:
 def finish_wandb(run) -> None:
     if run is not None:
         run.finish()
+
+
+def _sha256(path: str | Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def log_checkpoint_artifact(run, ckpt_path: str | Path, name: str,
+                            meta: dict, upstream=(), files=()) -> None:
+    """Upload the best checkpoint to W&B with what is needed to reproduce it.
+
+    The weights and ``files`` (the split record) are uploaded; the dataset and the upstream
+    checkpoints are recorded by path and SHA-256 rather than copied into every
+    run. A failed upload is reported and does not fail the training run.
+    """
+    if run is None or not Path(ckpt_path).exists():
+        return
+    try:
+        import subprocess
+
+        import wandb
+
+        from ..checkpoints import resolve_checkpoint
+
+        meta = dict(meta)
+        try:
+            meta["git_commit"] = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], text=True).strip()
+            meta["git_dirty"] = bool(subprocess.check_output(
+                ["git", "status", "--porcelain", "-uno"], text=True).strip())
+        except Exception:
+            pass
+        data = meta.get("dataset")
+        if data and os.path.exists(data):
+            meta["dataset_sha256"] = _sha256(data)
+        meta["upstream"] = {}
+        for spec in upstream:
+            path = resolve_checkpoint(spec)
+            meta["upstream"][spec] = {"path": str(path), "sha256": _sha256(path)}
+        art = wandb.Artifact(name, type="model", metadata=meta)
+        art.add_file(str(ckpt_path))
+        for extra in files:
+            if extra and os.path.exists(extra):
+                art.add_file(str(extra))
+        run.log_artifact(art)
+        print(f"logged W&B artifact {name}", flush=True)
+    except Exception as exc:
+        print(f"W&B artifact upload failed (checkpoint is safe locally): {exc}",
+              flush=True)
 
 
 def _log_figure(run, key: str, fig, epoch: int) -> None:

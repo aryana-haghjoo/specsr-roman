@@ -41,8 +41,11 @@ phot_tier: medium         # bands that ship with the grism
 phot_eval_mag_err: 0.05   # never score against noiseless truth photometry
 ```
 
-`medium` is the only tier, and `grids.MAX_PHOT_BANDS` refuses an explicit band
-list longer than three. Feeding a model more bands than the survey delivers
+`medium` is the three Roman bands of the published chain. `medium_rubin` adds
+Rubin *ugrizy* with the sky-limited noise of a coadd `rubin_depth_offset`
+magnitudes shallower than the ten-year one (`configs/zhead_rubin_y10.yaml`,
+`configs/zhead_rubin_y1.yaml`). `grids.MAX_PHOT_BANDS` refuses an explicit band
+list longer than those nine. Feeding a model more bands than a survey delivers
 with the grism hands it an effectively complete, noiseless SED, from which the
 redshift can be read without the spectrum contributing anything —
 `specsr-roman evaluate ablation` exists to keep that visible.
@@ -66,8 +69,8 @@ SR2 that draws nothing; a line-region MSE ratio is diluted across 98 windows
 and picks the timidest epoch available.
 
 :::{note}
-**SR2's best epoch is 4.** That is the design working, not a truncated run:
-hallucination amplitude climbs from 0.26 to 0.62 by epoch 150 while
+**SR2's best epoch is 3.** That is the design working, not a truncated run:
+hallucination amplitude climbs from 0.50 to 0.74 by epoch 150 while
 recoverable amplitude barely moves. The goal deliberately selects the sharpest
 epoch before hallucination runs away.
 :::

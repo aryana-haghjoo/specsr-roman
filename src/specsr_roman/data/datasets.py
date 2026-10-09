@@ -109,6 +109,9 @@ class RomanFixedGridDataset(Dataset):
         # object ids for the group split, and catalogue photometry for the
         # redshift head.
         self.ids = np.asarray(data["ids"])[keep] if "ids" in data else None
+        # catalogue H158 magnitude: the only absolute flux scale a row has
+        self.ab_h158 = (np.asarray(data["ab_h158"])[keep]
+                        if "ab_h158" in data else None)
         self.phot = (np.asarray(data["phot"])[keep].astype(np.float32)
                      if "phot" in data else None)
         self.phot_bands: tuple[str, ...] | None = None

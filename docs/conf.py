@@ -15,7 +15,7 @@ copyright = "2026, Aryana Haghjoo"
 try:
     release = importlib.metadata.version("specsr-roman")
 except importlib.metadata.PackageNotFoundError:  # building from a source tree
-    release = "0.2.0"
+    release = "0.3.0"
 version = release
 
 extensions = [

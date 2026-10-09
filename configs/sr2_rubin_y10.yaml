@@ -1,0 +1,37 @@
+# SR2 on the Rubin head: configs/sr2.yaml with the redshift coming from
+# `zhead_ou2024_roman_med3_rubin_y10` (Roman F106/F129/F158 + Rubin ugrizy,
+# ten-year coadd). Nothing else differs, so the two SR2 checkpoints isolate
+# what a better redshift buys the line recovery.
+#
+#   specsr-roman train sr2 --config configs/sr2_rubin_y10.yaml
+data: data/dataset/ou2024_h10307_dataset.npz
+sr1_ckpt: sr1_ou2024_v6
+zhead_ckpt: zhead_ou2024_roman_med3_rubin_y10
+phot_tier: medium_rubin
+epochs: 150
+
+batch_size: 32
+lr: 1.0e-4
+weight_decay: 2.0e-5
+grad_clip: 0.5
+
+delta_cap: 40.0
+sigma_base_um: 0.005
+z_topk: 3
+
+lam_hp_in: 3.0
+lam_hp_out: 0.3
+hp_k: 51
+lam_sparse: 0.0
+lam_lineflux: 1.0
+lam_hallu: 1.0
+hallu_snr0: 1.0
+lam_presence: 0.3
+presence_thresh: 3.0
+label_sigma: 0.03
+
+lam_z: 0.0
+lam_z_warmup: 5
+zhead_finetune: true
+zhead_lr_mult: 0.1
+out_prefix: sr2_ou2024_v5_rubin_y10

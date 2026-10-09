@@ -148,8 +148,8 @@ class ZHeadClf(nn.Module):
         applies ``log10`` then standardises with train-split statistics
         carried in the ``phot_mu`` / ``phot_sig`` buffers.
 
-        Feed it only bands that ship with the grism (see
-        :data:`specsr_roman.grids.ROMAN_MEDIUM_BANDS`). Given a complete,
+        Feed it only bands a survey delivers with the grism (see
+        :data:`specsr_roman.grids.PHOT_TIERS`). Given a complete,
         noiseless SED the head can read the redshift off the photometry alone,
         which measures the catalogue rather than the instrument.
     """
@@ -170,6 +170,10 @@ class ZHeadClf(nn.Module):
         if n_phot:
             self.register_buffer("phot_mu", torch.zeros(n_phot))
             self.register_buffer("phot_sig", torch.ones(n_phot))
+            # Per-band 1-sigma depth noise in flux units; 0 = none modelled.
+            # Doubles as the non-detection floor in forward(), and travels
+            # with the checkpoint so evaluation draws the noise it trained on.
+            self.register_buffer("phot_sigma", torch.zeros(n_phot))
             self.phot_net = nn.Sequential(nn.Linear(n_phot, 64), nn.GELU(),
                                           nn.Linear(64, 64), nn.GELU())
             head_in += 64
@@ -189,7 +193,9 @@ class ZHeadClf(nn.Module):
             if phot is None:  # e.g. deliberately zeroed inside SR2's z-loss
                 p = torch.zeros(B, self.n_phot, device=x.device)
             else:
-                p = (torch.log10(phot.clamp_min(1e-12)) - self.phot_mu) / self.phot_sig
+                floor = self.phot_sigma.clamp_min(1e-12)
+                p = (torch.log10(torch.maximum(phot, floor))
+                     - self.phot_mu) / self.phot_sig
             z_in = torch.cat([z_in, self.phot_net(p)], dim=-1)
         return self.logits(self.mlp(z_in))                    # (B, n_bins)
 
@@ -214,6 +220,8 @@ class ZHeadClf(nn.Module):
         in_channels = int(state["feat_net.0.weight"].shape[1]) - 1
         head = cls(state["z_centers"], in_channels=in_channels,
                    n_phot=n_phot, **kwargs)
+        if n_phot and "phot_sigma" not in state:   # heads from before 0.3
+            state = {**state, "phot_sigma": torch.zeros(n_phot)}
         head.load_state_dict(state)
         return head
 

@@ -88,22 +88,30 @@ BAND_PIVOT: dict[str, float] = {
     "roman_flux_F184": 18400, "roman_flux_K213": 21300,
 }
 
-# The photometry that ships *with the grism* in the real survey, and the only
-# band set a model here may use: the HLWAS grism comes with Medium-tier Roman
-# imaging in F106/F129/F158. Wider sets are deliberately absent. LSST optical
-# coverage over the footprint is external, partial and not guaranteed at first
-# data release, and a model handed enough bands stops measuring the instrument
-# and starts reading the redshift off an effectively complete SED --- which
-# scores well on a simulation and cannot be reproduced on the sky.
+# The photometry that ships *with the grism* in the real survey: the HLWAS
+# grism comes with Medium-tier Roman imaging in F106/F129/F158. This is the
+# published tier and the one that needs nothing but Roman.
 ROMAN_MEDIUM_BANDS: tuple[int, ...] = (8, 9, 11)          # F106 / F129 / F158
 
-#: Hard ceiling on how many bands may be fed to a model. Raise it only
-#: alongside a survey tier that actually delivers that many alongside a grism
-#: spectrum, and re-run the photometry ablation when you do.
-MAX_PHOT_BANDS: int = len(ROMAN_MEDIUM_BANDS)
+# Rubin *ugrizy*. External to Roman, but the HLWAS footprint lies inside the
+# Rubin wide survey, so a coadd exists wherever the grism observes.
+RUBIN_BANDS: tuple[int, ...] = (0, 1, 2, 3, 4, 5)
+
+# Roman Medium tier plus Rubin: the nine bands a grism spectrum has once the
+# Rubin coadd is in hand. The five remaining Roman bands stay out --- no survey
+# tier delivers them alongside the grism.
+ROMAN_MEDIUM_RUBIN_BANDS: tuple[int, ...] = RUBIN_BANDS + ROMAN_MEDIUM_BANDS
+
+#: Hard ceiling on how many bands may be fed to a model: the widest set a
+#: survey really delivers with a grism spectrum. Rubin bands only count as
+#: delivered when they carry their coadd depth noise (see
+#: :func:`phot_flux_sigma`); a head trained on them noiseless is reading the
+#: simulation's SED, not a measurement.
+MAX_PHOT_BANDS: int = len(ROMAN_MEDIUM_RUBIN_BANDS)
 
 PHOT_TIERS: dict[str, tuple[int, ...]] = {
     "medium": ROMAN_MEDIUM_BANDS,
+    "medium_rubin": ROMAN_MEDIUM_RUBIN_BANDS,
 }
 
 # AB anchor for OU2024 H158: images carry counts = f_cat * 10^(0.4 * ZPTMAG),
@@ -112,8 +120,59 @@ AB_ANCHOR_H158 = 14.96
 OU2024_ZPTMAG = 16.8009
 
 
+# OU2024 catalogue fluxes are photon rates through each bandpass
+# [ph / s / cm^2], so every band has its own AB zero point,
+# AB = ZP - 2.5 log10(f). The H158 anchor above is that number for H158 and
+# must not be reused for another band: doing so puts Rubin u two magnitudes
+# too faint.
+#
+# These are measured from the simulation (scripts/derive_zeropoints.py): the
+# SED of a galaxy gives its AB colours through the filter curves, H158 sets
+# the scale, and the zero point is what turns the catalogue flux into that
+# magnitude. The scatter over 400 galaxies is 0.005-0.04 mag. The Rubin values
+# are 0.2-0.5 mag below what the lsst/throughputs v1.9 total throughputs give
+# (12.655, 14.690, 14.560, 14.379, 13.994, 13.019), which were used until
+# 2026-10-08: the catalogue was not computed with those curves. With the old
+# values the Rubin magnitudes came out too faint and the depth noise too
+# large by the same amount.
+AB_ZEROPOINT: dict[str, float] = {
+    "lsst_flux_u": 12.458, "lsst_flux_g": 14.348, "lsst_flux_r": 14.198,
+    "lsst_flux_i": 13.871, "lsst_flux_z": 13.497, "lsst_flux_y": 12.659,
+    "roman_flux_R062": 15.176, "roman_flux_Z087": 14.842,
+    "roman_flux_Y106": 14.899, "roman_flux_J129": 14.933,
+    "roman_flux_W146": 16.162, "roman_flux_H158": AB_ANCHOR_H158,
+    "roman_flux_F184": 14.512, "roman_flux_K213": 14.468,
+}
+
+# Rubin 5-sigma point-source depth of the ten-year coadd (Ivezic et al. 2019,
+# Table 2). Galaxies are extended, so this is the optimistic end.
+RUBIN_M5_Y10: dict[str, float] = {
+    "lsst_flux_u": 26.1, "lsst_flux_g": 27.4, "lsst_flux_r": 27.5,
+    "lsst_flux_i": 26.8, "lsst_flux_z": 26.1, "lsst_flux_y": 24.9,
+}
+
+#: Depth lost going from the ten-year coadd to a single year, in magnitudes.
+RUBIN_Y1_OFFSET: float = 1.25
+
+
+def phot_flux_sigma(band_names, depth_offset: float = 0.0) -> np.ndarray:
+    """Per-band 1-sigma flux noise in catalogue units; 0 where none is modelled.
+
+    Rubin bands get the sky-limited noise of a coadd ``depth_offset``
+    magnitudes shallower than the ten-year one. Roman Medium-tier imaging is
+    several magnitudes deeper than the grism sample, so its bands carry only
+    the multiplicative error applied elsewhere and return 0 here.
+    """
+    sig = np.zeros(len(band_names), dtype=np.float32)
+    for i, name in enumerate(band_names):
+        if name in RUBIN_M5_Y10:
+            m5 = RUBIN_M5_Y10[name] - depth_offset
+            sig[i] = 10.0 ** (-0.4 * (m5 - AB_ZEROPOINT[name])) / 5.0
+    return sig
+
+
 def resolve_phot_tier(spec: str | None) -> tuple[int, ...] | None:
-    """``"medium"`` or an explicit ``"8,9,11"`` -> band indices.
+    """``"medium"``, ``"medium_rubin"`` or an explicit ``"8,9,11"`` -> band indices.
 
     ``None`` means "use every band the dataset file carries" and is a *loader*
     convenience --- OU2024 stores 14 columns whatever a model consumes. It is
@@ -135,8 +194,8 @@ def resolve_phot_tier(spec: str | None) -> tuple[int, ...] | None:
     if len(bands) > MAX_PHOT_BANDS:
         raise ValueError(
             f"phot tier {spec!r} asks for {len(bands)} bands; the ceiling is "
-            f"{MAX_PHOT_BANDS} (Roman Medium-tier F106/F129/F158). More bands "
-            "than the survey delivers with the grism turn the redshift into a "
+            f"{MAX_PHOT_BANDS} (Roman Medium tier plus Rubin ugrizy). More bands "
+            "than a survey delivers with the grism turn the redshift into a "
             "photometric one measured on simulated colours -- see "
             "specsr_roman.evaluation.ablation")
     return bands

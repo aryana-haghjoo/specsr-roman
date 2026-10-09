@@ -198,7 +198,7 @@ standardises to 0 — the same vector `RomanPipeline.predict(phot=None)` sends.
 
 `specsr-roman evaluate ablation` uses it to answer which input the redshift
 came from. Removing all three colours takes the published head from NMAD
-0.0064 / 5.3 % catastrophic to **0.0143 / 26.2 %**, so the colours carry most
+0.0043 with 5.0 % of outliers to **0.0053 with 16.6 %**, so the colours carry most
 of the alias-breaking. Read that as an upper bound rather than an information
 floor: the head was *trained* with colours, and a grism-only head is a
 separate experiment that has not been run.
@@ -206,8 +206,11 @@ separate experiment that has not been run.
 The noise sweep in the same audit is the continuous version. Even with
 *noiseless* colours the outlier rate is 3.9 % rather than zero — the signature
 of a head reading its spectrum. A model that reaches 0 % is being handed an
-effectively complete SED, which is why `grids.MAX_PHOT_BANDS` caps the band
-count at the three that fly with the grism.
+effectively complete SED. The `medium_rubin` tier (Rubin *ugrizy* added, at
+coadd depth) comes close to that, which is why it is always reported next to
+its photometry-only control: `specsr-roman evaluate ablation` scores the same
+nine bands with the spectrum blanked, and the difference is what the grism
+contributes. `grids.MAX_PHOT_BANDS` caps the band count at those nine.
 
 > **Naming trap.** OU2024 uses the *old* Roman band names, which collide with
 > the current WFI scheme: OU2024 `R062` is 0.62 µm (current F062), and OU2024
@@ -270,7 +273,7 @@ improve).
 The goal used is `-recov_amp + lam_hallu * hallu_amp`: integrated
 predicted-over-true flux on *recoverable* strong lines against the same
 quantity on *undetectable* ones. It selects the sharpest epoch that is not yet
-hallucinating — epoch 4 on the published run. That is the design working:
+hallucinating — epoch 3 on the published run. That is the design working:
 hallucination amplitude climbs from 0.26 to 0.62 by epoch 150 while
 recoverable amplitude barely moves.
 
@@ -352,14 +355,15 @@ first would change which galaxies land on which side.
 Every figure and every quoted number reads that file rather than a live model,
 so a plotting tweak cannot quietly change a result.
 
-`metrics.line_amplitude_recovery` is the published metric: per row, summed
-predicted flux over summed true flux across line pixels, binned by the row's
-best line S/N. `per_line_amplitude_recovery` is the diagnostic companion,
-attributing a failure to a specific transition.
+Sample statistics (redshifts, residuals) use every held-out spectrum. The
+lines are judged only where they are detected: a line is scored when its own
+S/N reaches 2 (`metrics.detected_line_mask`), and nothing is concluded below
+that. Training is not cut.
 
-The **`unrecoverable` bin is the control.** A well-behaved model scores near
-zero there. A model scoring 0.3 is inventing lines, however good its `strong`
-number looks — and no single averaged metric would tell you.
+`metrics.line_amplitude_recovery` is the published metric: per row, summed
+predicted flux over summed true flux across the pixels of its detected lines,
+binned by the row's best line S/N (marginal 2–3, good 3–6, strong > 6). `per_line_amplitude_recovery` is the diagnostic companion,
+attributing a failure to a specific transition.
 
 The honesty claims are backed by code you can re-run:
 

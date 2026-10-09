@@ -19,6 +19,7 @@ from ..data import (
     get_or_make_split,
     standardization_stats,
 )
+from ..grids import phot_flux_sigma
 from ..models import (
     ZHead1D,
     ZHeadAttn,
@@ -33,6 +34,7 @@ from .common import (
     ensure_dir,
     finish_wandb,
     init_wandb,
+    log_checkpoint_artifact,
     log_z_plots,
     pick_device,
     set_seed,
@@ -67,9 +69,11 @@ def train(cfg: ZHeadConfig) -> dict:
         raise SystemExit("use_phot is set but the dataset has no `phot` array")
 
     if full_ds.ids is not None:
-        train_idx, test_idx, _ = get_or_make_group_split(dataset_path, full_ds.ids)
+        train_idx, test_idx, split_path = get_or_make_group_split(
+            dataset_path, full_ds.ids)
     else:
-        train_idx, test_idx, _ = get_or_make_split(dataset_path, len(full_ds))
+        train_idx, test_idx, split_path = get_or_make_split(
+            dataset_path, len(full_ds))
     train_idx, test_idx = filter_split_min_lines(
         train_idx, test_idx, full_ds.z.numpy(), full_ds.wave_hi,
         cfg.min_strong_lines)
@@ -102,12 +106,21 @@ def train(cfg: ZHeadConfig) -> dict:
                          n_heads=cfg.n_heads, refine_window=cfg.refine_window,
                          n_phot=n_phot).to(device)
         if use_phot:
-            mu, sig = standardization_stats(full_ds.phot[train_idx])
+            sigma_flux = phot_flux_sigma(full_ds.phot_bands,
+                                         cfg.rubin_depth_offset)
+            mu, sig = standardization_stats(full_ds.phot[train_idx], sigma_flux)
             zhead.phot_mu.copy_(torch.tensor(mu, device=device))
             zhead.phot_sig.copy_(torch.tensor(sig, device=device))
+            zhead.phot_sigma.copy_(torch.tensor(sigma_flux, device=device))
             print(f"photometry branch: {n_phot} bands {list(full_ds.phot_bands)}, "
                   f"train noise {cfg.phot_mag_err} mag, "
                   f"eval noise {cfg.phot_eval_mag_err} mag")
+            if sigma_flux.any():
+                snr = np.median(full_ds.phot[train_idx], axis=0) / np.where(
+                    sigma_flux > 0, sigma_flux, np.inf)
+                print(f"depth noise ({cfg.rubin_depth_offset:+.2f} mag from the "
+                      f"ten-year coadd), median S/N per band: "
+                      f"{np.round(snr, 1).tolist()}")
         print(f"P(z) grid: {cfg.n_bins} bins over [{cfg.z_lo},{cfg.z_hi}] "
               f"(dz={(cfg.z_hi - cfg.z_lo) / cfg.n_bins:.4f}), "
               f"label_sigma={cfg.label_sigma}")
@@ -138,7 +151,8 @@ def train(cfg: ZHeadConfig) -> dict:
         with torch.no_grad():
             m, lv = sr1(lr)
         feat = torch.cat([m, 0.5 * lv], dim=1)                 # (B, 2, L)
-        return torch.cat([lr, feat], dim=1) if is_clf else feat
+        x_in = torch.cat([lr, feat], dim=1) if is_clf else feat
+        return x_in if cfg.use_spectrum else torch.zeros_like(x_in)
 
     def clf_step(x_in, z, phot=None):
         logits = zhead(x_in, phot=phot)
@@ -170,7 +184,8 @@ def train(cfg: ZHeadConfig) -> dict:
             return None
         phot = batch[7].to(device, non_blocking=True)
         sigma = cfg.phot_mag_err if train else cfg.phot_eval_mag_err
-        return apply_phot_noise(phot, sigma, None if train else eval_gen)
+        return apply_phot_noise(phot, sigma, None if train else eval_gen,
+                                zhead.phot_sigma)
 
     best_nmad = float("inf")
     best_path = out_dir / f"{cfg.out_prefix}_best.pth"
@@ -230,5 +245,11 @@ def train(cfg: ZHeadConfig) -> dict:
         except Exception as exc:
             print(f"hub push failed (checkpoint is safe locally): {exc}", flush=True)
 
+    log_checkpoint_artifact(
+        run, best_path, cfg.run_name or cfg.out_prefix,
+        {**summary, **to_dict(cfg), "dataset": dataset_path,
+         "phot_bands": list(full_ds.phot_bands or ()),
+         "train_rows": len(train_idx), "test_rows": len(test_idx)},
+        upstream=[cfg.sr1_ckpt], files=[split_path])
     finish_wandb(run)
     return summary

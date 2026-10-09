@@ -20,7 +20,7 @@ jupyter lab tutorials/
 Every input is downloaded from the Hub on first use — a 512-row
 [tutorial subset](https://huggingface.co/datasets/aryana-haghjoo/romansr-data/blob/main/tutorial/ou2024_h10307_tutorial.npz)
 of the training data (3.8 MB) and the three published checkpoints (13 MB).
-Nothing here needs the full 271 MB dataset or a GPU.
+Nothing here needs the full 270 MB dataset or a GPU.
 
 ## The tutorial dataset
 

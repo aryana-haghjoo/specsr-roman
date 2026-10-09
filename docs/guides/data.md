@@ -78,13 +78,15 @@ from specsr_roman.data import RomanFixedGridDataset
 ds = RomanFixedGridDataset(path, with_phot=True, phot_tier="medium")
 ```
 
-Tiers are `medium`, `deep`, `all`, or an explicit `"8,9,11"`.
+Tiers are `medium` (Roman Y106/J129/H158), `medium_rubin` (those plus Rubin
+*ugrizy*), or an explicit `"8,9,11"`.
 
-`all` includes LSST *ugrizy*. LSST coverage over Roman's grism footprint is
-external, partial, and not guaranteed at first data release — and with all 14
-noiseless bands the photometry is an effectively complete SED from which the
-redshift can be read without the spectrum contributing anything. It is a
-diagnostic configuration, never one to deploy.
+The Rubin bands are external to Roman and must carry their coadd depth noise
+(`grids.phot_flux_sigma`). The catalogue fluxes are photon rates through each
+bandpass, so every band has its own AB zero point (`grids.AB_ZEROPOINT`); the
+H158 anchor is not valid for any other band. With all 14 noiseless bands the
+photometry is an effectively complete SED from which the redshift can be read
+without the spectrum contributing anything, so no tier offers them.
 
 :::{warning}
 OU2024 uses the **old** Roman band names, which collide with the current WFI

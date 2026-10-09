@@ -19,8 +19,7 @@ abstract: >-
   A three-stage, physics-informed deep learning framework that super-resolves
   Roman Space Telescope slitless grism spectra, with a photometry-conditioned
   redshift head that breaks the single-line alias degeneracy and an
-  attention-based refinement stage calibrated on line recoverability, so that
-  emission lines the data cannot support are not drawn.
+  attention-based refinement stage calibrated on line recoverability.
 type: software
 authors:
   - given-names: Aryana
@@ -29,8 +28,8 @@ authors:
     email: ahagh010@ucr.edu
     affiliation: >-
       Department of Physics and Astronomy, University of California Riverside
-version: 0.2.0
-date-released: "2026-10-02"
+version: 0.3.0
+date-released: "2026-10-09"
 license: MIT
 repository-code: "https://github.com/aryana-haghjoo/specsr-roman"
 url: "https://aryana-haghjoo.github.io/specsr-roman/"

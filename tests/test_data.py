@@ -166,3 +166,15 @@ def test_select_bands_slices_the_requested_tier():
     assert keep == ROMAN_MEDIUM_BANDS
     assert out.shape == (3, 3)
     assert np.array_equal(out[0], phot[0, list(ROMAN_MEDIUM_BANDS)])
+def test_normalize_survives_tiny_physical_units():
+    """Spectra of order 1e-22 in float32 must still come out unit-variance.
+
+    Their squares underflow float32; a float32 std collapses onto the floor
+    and the "normalised" spectrum comes out orders of magnitude too large.
+    """
+    from specsr_roman.data.transforms import normalize
+    rng = np.random.default_rng(0)
+    x = (1e-22 * (1.0 + 0.1 * rng.standard_normal(2500))).astype(np.float32)
+    n, mean, std = normalize(x)
+    assert np.std(n) == pytest.approx(1.0, rel=1e-3)
+    assert std == pytest.approx(1e-23, rel=0.1)

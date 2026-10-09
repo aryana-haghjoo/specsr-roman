@@ -284,7 +284,8 @@ def test_sed_library_sums_components_and_redshifts(tmp_path):
     assert np.allclose(np.diff(w_obs), 5.0)
     assert w_obs[0] == pytest.approx(2500.0)
     # The line moved to (1+z) * 5007.
-    peak = w_obs[np.argmax(flam)]
+    # (in f_nu, where the fake continuum is flat: f_lambda rises to the blue)
+    peak = w_obs[np.argmax(flam * w_obs ** 2)]
     assert peak == pytest.approx(5007.0 * (1 + z), rel=2e-3)
     lib.close()
 
@@ -298,13 +299,38 @@ def test_sed_library_conserves_line_flux_off_the_adaptive_grid(tmp_path):
     z = 0.0
     w_obs, flam = lib.observed(gid, z)
 
-    total = comps.sum(axis=0)
-    cont = 1e-24 * comps.shape[0]
+    # the file is f_nu; the loader returns f_lambda = f_nu c / lambda^2
+    to_flam = 2.99792458e18 / wave ** 2
+    total = comps.sum(axis=0) * to_flam
+    cont = 1e-24 * comps.shape[0] * to_flam
+    cont_out = 1e-24 * comps.shape[0] * 2.99792458e18 / w_obs ** 2
     m_src = (wave > 4990) & (wave < 5025)
     m_out = (w_obs > 4990) & (w_obs < 5025)
-    src_line = np.trapezoid(total[m_src] - cont, wave[m_src])
-    out_line = np.trapezoid(flam[m_out] - cont, w_obs[m_out])
+    src_line = np.trapezoid((total - cont)[m_src], wave[m_src])
+    out_line = np.trapezoid((flam - cont_out)[m_out], w_obs[m_out])
     assert out_line == pytest.approx(src_line, rel=0.05)
+    lib.close()
+
+
+def test_sed_library_converts_fnu_to_flambda(tmp_path):
+    """The file stores f_nu (skyCatalogs: flux_type='fnu').
+
+    A spectrum flat in f_nu must come out falling as lambda^-2. Read as
+    f_lambda instead, every target is 3.7 times too red across the grism band.
+    """
+    import h5py
+
+    from specsr_roman.extraction import SEDLibrary
+    gid = 10307000000002
+    wave = np.linspace(1000.0, 30000.0, 400)
+    with h5py.File(tmp_path / "flat.h5", "w") as f:
+        f.create_dataset("meta/wave_list", data=wave)
+        f.create_dataset(f"galaxy/{gid // 100000}/{gid}",
+                         data=np.full((3, wave.size), 1e-24))
+    lib = SEDLibrary(str(tmp_path / "flat.h5"))
+    w_obs, flam = lib.observed(gid, 0.0)
+    blue, red = np.argmin(np.abs(w_obs - 10000.0)), np.argmin(np.abs(w_obs - 19300.0))
+    assert flam[blue] / flam[red] == pytest.approx(1.93 ** 2, rel=1e-2)
     lib.close()
 
 
@@ -325,7 +351,7 @@ def test_grizli_spectrum_normalises_to_unity_in_the_direct_band(tmp_path):
     band = (w > H158_NORM_LO) & (w < H158_NORM_HI)
     assert f[band].mean() == pytest.approx(1.0, rel=1e-6)
     # The raw SED is returned untouched: it becomes the training target.
-    assert f_raw.max() > 1e-23
+    assert f_raw.max() > 1e-13
     assert f_raw.max() != pytest.approx(f.max())
     lib.close()
 

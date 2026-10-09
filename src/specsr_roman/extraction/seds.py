@@ -7,6 +7,12 @@ everything downstream:
 * the wavelength grid is **adaptive** --- sub-Angstrom bins at emission lines,
   very coarse elsewhere. Point interpolation onto a uniform grid loses line
   flux, so every rebin here is flux-conserving;
+* the file stores **f_nu**, per unit frequency. skyCatalogs reads it with
+  ``galsim.SED(..., wave_type='angstrom', flux_type='fnu')``. Everything
+  downstream (grizli, the targets, the line fluxes) works in f_lambda, so the
+  conversion ``f_lambda = f_nu c / lambda^2`` happens here, once, on the native
+  grid. Leaving it out reddens every spectrum by lambda^2, a factor of 3.7
+  across the grism band, while the catalogue photometry stays correct;
 * the absolute flux scale is internal to the simulation and meaningless.
   Only the *shape* is used: grizli renormalises to the direct-image counts,
   and the training dataset normalises per spectrum.
@@ -26,6 +32,8 @@ __all__ = ["SEDLibrary", "H158_NORM_LO", "H158_NORM_HI"]
 # to set the amplitude. Skip this and raw Diffsky values (~1e-24) disperse an
 # effectively empty scene -- a silent, total failure.
 H158_NORM_LO, H158_NORM_HI = 13800.0, 17700.0
+
+_C_AA_PER_S = 2.99792458e18
 
 
 class SEDLibrary:
@@ -57,14 +65,16 @@ class SEDLibrary:
     def observed(self, gid: int, z: float, dlam: float = 5.0):
         """``(observed wavelength [A], f_lambda)`` on a uniform ``dlam`` grid.
 
-        The three Diffsky components are summed, redshifted, and rebinned
-        flux-conservingly so the line spikes survive every later
-        interpolation. Raises ``KeyError`` for a galaxy with no SED entry.
+        The three Diffsky components are summed, redshifted, converted from
+        the file's f_nu to f_lambda, and rebinned flux-conservingly so the
+        line spikes survive every later interpolation. Raises ``KeyError`` for
+        a galaxy with no SED entry.
         """
         f, wave = self._ensure_open()
         sed = np.asarray(f[f"galaxy/{gid // 100000}/{gid}"],
                          dtype=np.float64).sum(axis=0)
         wave_obs = wave * (1.0 + z)
+        sed = sed * _C_AA_PER_S / wave_obs ** 2          # f_nu -> f_lambda
         uniform = np.arange(2500.0, min(wave_obs[-1], 25000.0), dlam)
         return uniform, fluxconserve_resample(wave_obs, sed, uniform)
 

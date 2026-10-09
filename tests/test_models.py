@@ -162,3 +162,17 @@ def test_delta_cap_reaches_real_line_amplitudes():
     strong = torch.tensor([35.0])
     assert float(constrain_delta(strong, cap=40.0)) > 20.0
     assert float(constrain_delta(strong, cap=3.0)) < 3.1
+
+
+def test_zhead_floors_non_detections_and_loads_older_heads():
+    centers = make_z_grid(0.0, 3.1, 64)
+    h = ZHeadClf(centers, in_channels=4, n_phot=3).eval()
+    h.phot_sigma.fill_(0.5)
+    x = torch.randn(2, 4, L)
+    # Anything at or below one sigma, negative included, is the same input.
+    below = h(x, phot=torch.tensor([[-1.0, 0.1, 0.5]] * 2))
+    at = h(x, phot=torch.full((2, 3), 0.5))
+    assert torch.allclose(below, at)
+    # A checkpoint written before the buffer existed still loads.
+    old = {k: v for k, v in h.state_dict().items() if k != "phot_sigma"}
+    assert not ZHeadClf.from_state_dict(old).phot_sigma.any()

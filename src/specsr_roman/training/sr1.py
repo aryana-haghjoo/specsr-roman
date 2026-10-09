@@ -24,6 +24,7 @@ from .common import (
     ensure_dir,
     finish_wandb,
     init_wandb,
+    log_checkpoint_artifact,
     log_example_spectrum,
     log_residual_histograms,
     pick_device,
@@ -71,10 +72,11 @@ def train(cfg: SR1Config) -> dict:
     # feeds the train split when requested.
     full_dataset = RomanFixedGridDataset(dataset_path)
     if full_dataset.ids is not None:
-        train_idx, test_idx, _ = get_or_make_group_split(dataset_path,
-                                                         full_dataset.ids)
+        train_idx, test_idx, split_path = get_or_make_group_split(
+            dataset_path, full_dataset.ids)
     else:
-        train_idx, test_idx, _ = get_or_make_split(dataset_path, len(full_dataset))
+        train_idx, test_idx, split_path = get_or_make_split(
+            dataset_path, len(full_dataset))
     train_idx, test_idx = filter_split_min_lines(
         train_idx, test_idx, full_dataset.z.numpy(), full_dataset.wave_hi,
         cfg.min_strong_lines)
@@ -257,6 +259,11 @@ def train(cfg: SR1Config) -> dict:
         except Exception as exc:
             print(f"hub push failed (checkpoint is safe locally): {exc}", flush=True)
 
+    log_checkpoint_artifact(
+        run, best_path, cfg.run_name or cfg.out_prefix,
+        {**summary, **to_dict(cfg), "dataset": dataset_path,
+         "train_rows": len(train_idx), "test_rows": len(test_idx)},
+        files=[split_path])
     finish_wandb(run)
     return summary
 

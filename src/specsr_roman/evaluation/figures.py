@@ -47,8 +47,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from ..lines import STRONG_LINES_AA
-from .metrics import RECOVERABILITY_BINS, redshift_summary
+from ..lines import SR1_LINES_AA, STRONG_LINES_AA
+from .metrics import (
+                      DETECTED_LINE_HALF_AA,
+                      MIN_BEST_LINE_SNR,
+                      RECOVERABILITY_BINS,
+                      detected_line_mask,
+                      hlss_cosmology_sample,
+                      redshift_summary,
+)
 
 __all__ = ["FigureStyle", "plot_spectra", "plot_river", "plot_sn",
            "plot_redshift", "plot_psd", "plot_sample", "plot_recovery",
@@ -152,17 +159,29 @@ def _robust_ylims(y, p_lo=0.5, p_hi=99.5, pad_frac=0.06):
     return lo - pad, hi + pad
 
 
-def _line_report(wl, hr, sr, z, lines=LABEL_LINES, core_um=0.0018, side_um=0.035):
+def _is_detected(lam_rest_um, line_snr_row):
+    """Whether a line belongs to a complex the grism detected at S/N >= cut."""
+    d = np.abs(np.asarray(SR1_LINES_AA) * 1e-4 - lam_rest_um)
+    k = int(d.argmin())
+    return bool(d[k] < DETECTED_LINE_HALF_AA * 1e-4
+                and line_snr_row[k] >= MIN_BEST_LINE_SNR)
+
+
+def _line_report(wl, hr, sr, z, line_snr_row, lines=LABEL_LINES,
+                 core_um=0.0018, side_um=0.035):
     """Per-line amplitude of HR and SR above a local continuum.
 
-    Returns one record per line that falls in the band, with the HR
-    significance and the worst SR undershoot next to the line -- the two
-    numbers the example picker needs.
+    Returns one record per line that falls in the band and is detected in the
+    grism data, with the HR significance and the worst SR undershoot next to
+    the line -- the two numbers the example picker needs. Lines the grism did
+    not detect are not reported, so they are neither ranked on nor labelled.
     """
     out = []
     for name, lam_rest in lines:
         lam_obs = lam_rest * (1.0 + z)
         if not (wl[0] + 0.03 < lam_obs < wl[-1] - 0.03):
+            continue
+        if not _is_detected(lam_rest, line_snr_row):
             continue
         core = np.abs(wl - lam_obs) <= core_um
         side = np.abs(wl - lam_obs) <= side_um
@@ -224,7 +243,8 @@ def _rank_line_examples(c, snr_min=6.0, n_lines_min=2, amp_tol=0.30,
     dz = np.abs(zp - zt) / (1 + zt)
     scored = []
     for i in np.where(dz < dz_tol)[0]:
-        rep = [r for r in _line_report(wl, hr[i], sr[i], float(zt[i]))
+        rep = [r for r in _line_report(wl, hr[i], sr[i], float(zt[i]),
+                                       c['line_snr'][i])
                if r['snr'] > snr_min]
         if len(rep) < n_lines_min:
             continue
@@ -376,7 +396,7 @@ def plot_spectra(c, n_examples=2):
                              constrained_layout=True)
     for ax, i in zip(axes[:, 0], picks, strict=False):
         z = float(zt[i])
-        rep = _line_report(wl, hr[i], s2[i], z)
+        rep = _line_report(wl, hr[i], s2[i], z, c['line_snr'][i])
         ax.plot(wl, hr[i], color=COLOR_HR, lw=1.0, alpha=0.75,
                 label='HR target', zorder=1)
         ax.plot(wl, lr[i], color=COLOR_LR, lw=1.05, ls='--', alpha=0.85,
@@ -394,7 +414,9 @@ def plot_spectra(c, n_examples=2):
         for name, lam_rest in MAIN_LABELS:
             r = min(det.values(), key=lambda q: abs(q['lam_rest'] - lam_rest),
                     default=None)
-            if r is None or abs(r['lam_rest'] - lam_rest) > 0.02 or r['snr'] < 5:
+            # a name goes only on a line that is itself in the report, i.e.
+            # detected; a looser match would name its undetected neighbours
+            if r is None or abs(r['lam_rest'] - lam_rest) > 0.003 or r['snr'] < 5:
                 continue
             marks.append((name, lam_rest * (1 + z)))
         _annotate_lines(ax, marks, y_lo, y_hi, head=0.13, fontsize=8.5)
@@ -561,36 +583,47 @@ def _line_snr(wl, flux, lam_obs, half=0.045, core=0.012, sbgap=0.015, sbw=0.03):
     return amp / noise
 
 
-def plot_sn(c):
+def plot_sn(c, min_points=20):
     wl, lr, s2, zt = c['wl_um'], c['lr'], c['sr2'], c['z_true']
-    panels = [(r'[OII] $\lambda$3727', 0.3727), (r'H$\beta$', 0.4861),
-              (r'[OIII] $\lambda$5007', 0.5007), (r'H$\alpha$', 0.6563)]
-    fig, axes = plt.subplots(1, 4, figsize=(17, 4.2), squeeze=False)
+    # (name, rest wavelength, column of the dataset's line_snr labels)
+    lines = [(r'[OII] $\lambda$3727', 0.3727, 0), (r'H$\beta$', 0.4861, 1),
+             (r'[OIII] $\lambda$5007', 0.5007, 2), (r'H$\alpha$', 0.6563, 3)]
+    # a line is shown only where that line itself is detected in the grism
+    # data, and a panel only when enough spectra are left to fill it
+    det = c['line_snr'] >= MIN_BEST_LINE_SNR
+    panels = [(name, lam, det[:, k]) for name, lam, k in lines
+              if det[:, k].sum() >= min_points]
+    fig, axes = plt.subplots(1, len(panels), figsize=(4.6 * len(panels) + 0.6, 4.2),
+                             squeeze=False)
     last = None
-    for ax, (name, lam) in zip(axes[0], panels, strict=False):
+    for ax, (name, lam, keep) in zip(axes[0], panels, strict=True):
         lam_obs = (1 + zt) * lam
         inb = (lam_obs > wl[0] + 0.05) & (lam_obs < wl[-1] - 0.05)
-        idx = np.where(inb)[0]
+        idx = np.where(inb & keep)[0]
         sn_lr, sn_sr = [], []
         for i in idx:
             a = _line_snr(wl, lr[i], lam_obs[i]); b = _line_snr(wl, s2[i], lam_obs[i])
             if np.isfinite(a) and np.isfinite(b):
                 sn_lr.append(a); sn_sr.append(b)
-        sn_lr, sn_sr = np.array(sn_lr), np.clip(np.array(sn_sr), 0, None)
-        sn_lr = np.clip(sn_lr, 0, None)
-        hb = ax.hexbin(sn_lr, sn_sr, gridsize=40, extent=(0, 70, 0, 70),
+        # logarithmic axes: the output S/N spans three decades. Values below
+        # the lower edge (including negative peaks) are drawn on it.
+        lo, hi = 0.5, 5000.0
+        sn_lr = np.clip(np.array(sn_lr), lo, hi)
+        sn_sr = np.clip(np.array(sn_sr), lo, hi)
+        hb = ax.hexbin(sn_lr, sn_sr, gridsize=40, xscale='log', yscale='log',
+                       extent=(np.log10(lo), np.log10(hi)) * 2,
                        bins='log', cmap='viridis', mincnt=1)
-        ax.plot([0, 70], [0, 70], '--', color='0.4', lw=1)
-        ax.set_xlim(0, 70); ax.set_ylim(0, 70)
+        ax.plot([lo, hi], [lo, hi], '--', color='0.4', lw=1)
+        ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
         ax.set_title(name); ax.set_xlabel('S/N (LR input)')
-        if name.startswith('[OII]'):
+        if ax is axes[0, 0]:
             ax.set_ylabel('S/N (SR)')
         f_lr = np.mean(sn_lr > 10) if sn_lr.size else 0
         f_sr = np.mean(sn_sr > 10) if sn_sr.size else 0
-        # Upper right is the only corner the points leave clear.
-        ax.text(0.96, 0.95,
+        # Lower right is the corner the points leave clear.
+        ax.text(0.96, 0.05,
                 f'$n$ = {sn_lr.size:,}\nf(S/N > 10)\nLR: {f_lr:.2f}   SR: {f_sr:.2f}',
-                transform=ax.transAxes, va='top', ha='right', fontsize=9,
+                transform=ax.transAxes, va='bottom', ha='right', fontsize=9,
                 bbox=dict(boxstyle='round,pad=0.4', fc='white', ec='0.6', alpha=0.9))
         last = hb
     cb = fig.colorbar(last, ax=axes[0, -1], fraction=0.046, pad=0.04)
@@ -671,8 +704,7 @@ def plot_psd(c):
 
 
 # ------------------- 6-8. the sample and the binned results -------------------
-_BIN_LABELS = {"unrecoverable": "unrecoverable\n(S/N < 1)",
-               "marginal": "marginal\n(1 - 3)",
+_BIN_LABELS = {"marginal": "marginal\n(2 - 3)",
                "good": "good\n(3 - 6)",
                "strong": "strong\n(> 6)"}
 
@@ -687,6 +719,9 @@ def plot_sample(c):
     wl, zt = c['wl_um'], c['z_true']
     best = c['line_snr'].max(axis=1)
     nl = _n_strong_in_band(wl, zt)
+    # the part of the sample the HLSS galaxy redshift survey would select
+    hlss = hlss_cosmology_sample(zt, c['ha_flux'], c['oiii_flux'])
+    hlss_kw = dict(histtype='step', color='k', lw=1.5, zorder=3)
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(12, 4.2))
 
@@ -698,25 +733,37 @@ def plot_sample(c):
     a.hist([zt[m] for m, _, _ in groups], bins=edges, stacked=True,
            color=[col for _, _, col in groups],
            label=[lab for _, lab, _ in groups])
+    a.hist(zt[hlss], bins=edges, label='HLSS cosmology selection', **hlss_kw)
     a.set_xlim(edges[0], edges[-1])
     a.set_xlabel(r'Redshift $z$'); a.set_ylabel('Number of spectra')
     a.legend(frameon=False, fontsize=10)
 
-    # -- right: the best line's integrated S/N, with the four bins --
+    # -- right: the best line's integrated S/N, with the three bins --
     lo, hi = 0.03, 100.0
     x = np.clip(best, lo, hi)                    # pile the tails on the ends
     a_edges = np.logspace(np.log10(lo), np.log10(hi), 50)
-    shades = ['0.90', '0.97', '0.90', '0.97']
+    # below the cut no line is detected, and the lines are not judged there
+    below = np.mean(best < MIN_BEST_LINE_SNR)
+    b.axvspan(lo, MIN_BEST_LINE_SNR, color='0.97', zorder=0)
+    b.text(np.sqrt(lo * MIN_BEST_LINE_SNR), 0.97,
+           f'no detected line\n{100 * below:.0f}%',
+           transform=b.get_xaxis_transform(), ha='center', va='top',
+           fontsize=9.5, color='0.35')
+    shades = ['0.90', '0.97', '0.90']
     for (name, (blo, bhi)), shade in zip(RECOVERABILITY_BINS.items(), shades,
                                          strict=True):
         blo, bhi = max(blo, lo), min(bhi, hi)
         b.axvspan(blo, bhi, color=shade, zorder=0)
         frac = np.mean((best >= RECOVERABILITY_BINS[name][0])
                        & (best < RECOVERABILITY_BINS[name][1]))
-        b.text(np.sqrt(blo * bhi), 0.97, f'{name}\n{100 * frac:.0f}%',
+        # the marginal bin is narrow on this axis: drop its label a line so
+        # it clears its neighbours
+        b.text(np.sqrt(blo * bhi), 0.84 if name == 'marginal' else 0.97,
+               f'{name}\n{100 * frac:.0f}%',
                transform=b.get_xaxis_transform(), ha='center', va='top',
                fontsize=9.5)
     b.hist(x, bins=a_edges, color=COLOR_LR, zorder=2)
+    b.hist(x[hlss], bins=a_edges, **hlss_kw)
     b.set_xscale('log'); b.set_xlim(lo, hi)
     b.set_ylim(0, b.get_ylim()[1] * 1.28)        # headroom for the labels
     b.set_xlabel('Integrated S/N of the best line in the grism spectrum')
@@ -725,11 +772,11 @@ def plot_sample(c):
     _save(fig, 'sample.png')
 
 
-def _recovery_ratios(pred, hr, rows, line_thresh=5.0):
-    """Per-row recovered flux fraction over the target's line pixels."""
+def _recovery_ratios(pred, hr, rows, detected, line_thresh=5.0):
+    """Per-row recovered flux fraction over the pixels of its detected lines."""
     out = []
     for i in rows:
-        line = hr[i] > line_thresh
+        line = (hr[i] > line_thresh) & detected[i]
         total = hr[i][line].sum()
         if line.any() and total != 0:
             out.append(pred[i][line].sum() / total)
@@ -739,6 +786,7 @@ def _recovery_ratios(pred, hr, rows, line_thresh=5.0):
 def plot_recovery(c):
     sr1, sr2, hr = c['sr1'], c['sr2'], c['hr']
     best = c['line_snr'].max(axis=1)
+    detected = detected_line_mask(c['wl_um'], c['z_true'], c['line_snr'])
 
     fig, ax = plt.subplots(figsize=(6.4, 4.6))
     xs = np.arange(len(RECOVERABILITY_BINS))
@@ -748,7 +796,9 @@ def plot_recovery(c):
     for pred, lab, col, mk, off in stages:
         med, lo, hi = [], [], []
         for blo, bhi in RECOVERABILITY_BINS.values():
-            r = _recovery_ratios(pred, hr, np.where((best >= blo) & (best < bhi))[0])
+            r = _recovery_ratios(pred, hr,
+                                 np.where((best >= blo) & (best < bhi))[0],
+                                 detected)
             p16, p50, p84 = np.percentile(r, [16, 50, 84])
             med.append(p50); lo.append(p50 - p16); hi.append(p84 - p50)
             if pred is sr2:
@@ -756,18 +806,16 @@ def plot_recovery(c):
         ax.errorbar(xs + off, med, yerr=[lo, hi], fmt=mk + '-', color=col,
                     lw=1.6, ms=7, capsize=3.5, label=lab, zorder=3)
     ax.axhline(1.0, color='0.35', ls='--', lw=1.0, zorder=1)
-    ax.axhline(0.0, color='0.35', ls=':', lw=1.0, zorder=1)
     ax.text(xs[0] - 0.42, 1.02, 'full recovery', fontsize=9, color='0.35',
             va='bottom')
-    ax.text(xs[-1] + 0.42, 0.02, 'nothing drawn', fontsize=9, color='0.35',
-            va='bottom', ha='right')
+    ax.set_ylim(0, 1.3)
     ax.set_xticks(xs)
     ax.set_xticklabels([f'{_BIN_LABELS[k]}\n$n$ = {n:,}'
                         for k, n in zip(RECOVERABILITY_BINS, counts, strict=True)])
     ax.set_xlim(xs[0] - 0.5, xs[-1] + 0.5)
     ax.set_xlabel('Line recoverability')
     ax.set_ylabel('Recovered / true line flux')
-    ax.legend(frameon=False, fontsize=10, loc='center left')
+    ax.legend(frameon=False, fontsize=10, loc='lower right')
     fig.tight_layout()
     _save(fig, 'line_recovery.png')
 
@@ -781,10 +829,10 @@ def plot_redshift_breakdown(c):
               ('no strong\nline', nl == 0, COLOR_HR),
               ('one\nline', nl == 1, COLOR_HR),
               ('two or\nmore', nl >= 2, COLOR_HR)]
-    snr_labels = ('S/N < 1', '1 - 3', '3 - 6', '> 6')
+    snr_bins = [(0.0, MIN_BEST_LINE_SNR)] + list(RECOVERABILITY_BINS.values())
+    snr_labels = ('S/N < 2', '2 - 3', '3 - 6', '> 6')
     groups += [(lab, (best >= lo) & (best < hi), COLOR_SR)
-               for lab, (lo, hi) in zip(snr_labels, RECOVERABILITY_BINS.values(),
-                                        strict=True)]
+               for lab, (lo, hi) in zip(snr_labels, snr_bins, strict=True)]
     stats = [redshift_summary(zp[m], zt[m]) for _, m, _ in groups]
     xs = np.array([0, 1.4, 2.4, 3.4, 4.8, 5.8, 6.8, 7.8])
     cols = [col for _, _, col in groups]
@@ -832,6 +880,10 @@ def make_figures(cache, which=None, outdir: str = OUTDIR) -> list[str]:
     ``which`` is a list of keys from :data:`FIGURES`, or ``None`` for all.
     Ordering is deliberate --- the cheap panels render first, so a broken cache
     fails in seconds rather than after the residual river.
+
+    The sample-level figures use every spectrum of the cache. The line-level
+    ones (``spectra``, ``recovery``, ``sn``) show only lines detected at
+    :data:`~specsr_roman.evaluation.metrics.MIN_BEST_LINE_SNR` or above.
     """
     global OUTDIR
     previous, OUTDIR = OUTDIR, outdir
