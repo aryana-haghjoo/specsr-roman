@@ -151,6 +151,9 @@ def build_parser() -> argparse.ArgumentParser:
     pd = ev_sub.add_parser("prior", help="inverse-crime / prior-dominance audit")
     pd.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
     pd.add_argument("--sr1", default=None)
+    pd.add_argument("--zhead", default=None,
+                    help="with --sr2: audit the full pipeline as well")
+    pd.add_argument("--sr2", default=None)
     pd.add_argument("--max-sources", type=int, default=500)
 
     sub.add_parser("info", help="environment and canonical checkpoints")
@@ -339,6 +342,8 @@ def _cmd_evaluate(args) -> int:
         kwargs = {"data": args.data, "max_sources": args.max_sources}
         if args.sr1:
             kwargs["sr1_ckpt"] = args.sr1
+        if args.zhead and args.sr2:
+            kwargs.update(zhead_ckpt=args.zhead, sr2_ckpt=args.sr2)
         run_prior_dominance(PriorDominanceConfig(**kwargs))
         return 0
 

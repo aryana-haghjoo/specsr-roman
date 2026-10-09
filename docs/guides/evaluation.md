@@ -126,4 +126,7 @@ calibrated model should do when the data says nothing. Bin by detectability and
 judge `r` only where the information is present. Aggregate `r` is dominated by
 undetected lines and understates a good model.
 
-The published SR1 scores r ≈ 0.28 on OU2024.
+The published SR1 and the full pipeline both score r ≈ 0.30 on OU2024 (936
+held-out sources with a line above S/N 5), rising from 0.22 just above S/N 5 to
+0.41 for the best-detected third. Pass `--zhead` and `--sr2` to audit the full
+pipeline.

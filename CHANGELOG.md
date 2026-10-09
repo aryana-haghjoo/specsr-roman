@@ -5,6 +5,14 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 
 ## [Unreleased]
 
+### Added
+
+- `specsr-roman evaluate prior` audits the full pipeline as well as SR1 when
+  given `--zhead` and `--sr2`, and reports the response exponent in three
+  equal-count bins of best-line S/N as well as overall. On the 936 held-out
+  sources with a line above S/N 5 both stages score 0.30, rising from 0.22 to
+  0.41 with detectability.
+
 ## [0.3.0] — 2026-10-09
 
 **Every number produced with an earlier version is superseded.** The

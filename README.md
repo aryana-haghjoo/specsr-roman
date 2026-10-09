@@ -138,8 +138,10 @@ spectra with a detected line exactly one line is detected, and it is Hα (with
 [N II]) in 93 %.
 
 **Prior-dominance audit** (`specsr-roman evaluate prior`): response exponent
-r = 0.28 for the published SR1 on OU2024 — 1 means the model reads line
-strengths from the data, 0 means it recites the training manifold. See
+r = 0.30 for the published SR1 and for the full pipeline, on the 936 held-out
+sources with a line above S/N 5 — 1 means the model reads line strengths from
+the data, 0 means it recites the training manifold. It rises from 0.22 just
+above S/N 5 to 0.41 for the best-detected third. See
 [Limitations](#limitations).
 
 ---
@@ -257,7 +259,7 @@ Stated plainly, because they bound what the numbers mean.
 - **Results are on the Diffsky manifold.** Targets are simulated SEDs with
   simulation line physics. A model can score well by learning that manifold
   rather than by measuring anything, and no reconstruction metric distinguishes
-  the two. The prior-dominance audit puts the published SR1 at r ≈ 0.28 — it
+  the two. The prior-dominance audit puts the published chain at r ≈ 0.30 — it
   reads the data about a third of the time it could.
 - **Anti-prior augmentation is implemented but not used.** It raises r to ~0.51
   at fixed detectability while suppressing absolute line recovery, so the
