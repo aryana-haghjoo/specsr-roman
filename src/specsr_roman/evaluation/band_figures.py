@@ -32,6 +32,7 @@ from .linefit import ROMAN_FIT, measure_line_fluxes
 from .metrics import MIN_BEST_LINE_SNR, RECOVERABILITY_BINS, detected_line_mask
 
 __all__ = ["BandConfig", "BANDS", "load_band_caches", "measure_band_metrics",
+           "nii_halpha_ratio",
            "make_band_figures", "plot_response_bands"]
 
 
@@ -207,64 +208,83 @@ def plot_sn_bands(caches, min_points=20):
 # Residual maps, power spectra
 # ---------------------------------------------------------------------------
 def plot_river_bands(caches):
+    """Residual maps against the target: the input, then each SR2 output.
+
+    The input row is the same spectra in every column (the grism spectrum does
+    not depend on the redshift configuration); it is drawn in each so that
+    every output map sits under the map it started from. The two rows have
+    their own colour scales: on a shared one the output row would be blank.
+    """
     n_b = len(caches)
-    fig = plt.figure(figsize=(4.0 * n_b + 1.2, 7))
-    gs = GridSpec(2, n_b + 1, figure=fig, height_ratios=[4, 1],
-                  width_ratios=[1] * n_b + [0.045], hspace=0.06, wspace=0.07)
+    fig = plt.figure(figsize=(4.0 * n_b + 1.2, 11.5))
+    gs = GridSpec(3, n_b + 1, figure=fig, height_ratios=[4, 4, 1.1],
+                  width_ratios=[1] * n_b + [0.045], hspace=0.07, wspace=0.07)
     res = {}
     for b, c in caches.items():
         order = np.argsort(c["z_true"])
         res[b] = (order, (c["sr2"] - c["hr"])[order], (c["lr"] - c["hr"])[order])
-    img = {b: F._highpass(r[1], sigma_px=40) for b, r in res.items()}
-    vmax = np.percentile(np.abs(np.concatenate([v.ravel()[::7] for v in img.values()])), 97)
-    top = []
+    img_sr = {b: F._highpass(r[1], sigma_px=40) for b, r in res.items()}
+    img_lr = {b: F._highpass(r[2], sigma_px=40) for b, r in res.items()}
+    vmax_sr = np.percentile(np.abs(np.concatenate(
+        [v.ravel()[::7] for v in img_sr.values()])), 97)
+    vmax_lr = np.percentile(np.abs(next(iter(img_lr.values())).ravel()[::7]), 97)
+    top, lows = [], []
     for j, (b, c) in enumerate(caches.items()):
         wl = c["wl_um"]
         order, r_sr, r_lr = res[b]
         zt = c["z_true"][order]
         n = len(zt)
-        ax = fig.add_subplot(gs[0, j])
-        top.append(ax)
-        im = ax.imshow(img[b], aspect="auto", origin="lower",
-                       extent=[wl[0], wl[-1], 0, n], cmap="RdBu_r",
-                       vmin=-vmax, vmax=vmax)
         ztk = [z for z in (0, 0.5, 1, 1.5, 2, 2.5, 3) if zt[0] <= z <= zt[-1]]
-        ax.set_yticks([min(int(np.searchsorted(zt, z)), n - 1) for z in ztk])
-        ax.set_yticklabels([str(z) for z in ztk] if j == 0 else [])
-        plt.setp(ax.get_xticklabels(), visible=False)
         wt = np.linspace(wl[0], wl[-1], 300)
-        for name, lam in F.LINES.items():
-            zt_track = wt / lam - 1
-            idx = np.interp(zt_track, zt, np.arange(n), left=-1, right=n + 1)
-            m = (zt_track >= zt[0]) & (zt_track <= zt[-1])
-            if m.sum() < 2:
-                continue
-            ax.plot(wt[m], idx[m], "k--", lw=0.6, alpha=0.45)
+        ims = []
+        for row, (img, vmax) in enumerate(((img_lr[b], vmax_lr),
+                                           (img_sr[b], vmax_sr))):
+            ax = fig.add_subplot(gs[row, j])
+            ims.append(ax.imshow(img, aspect="auto", origin="lower",
+                                 extent=[wl[0], wl[-1], 0, n], cmap="RdBu_r",
+                                 vmin=-vmax, vmax=vmax))
+            ax.set_yticks([min(int(np.searchsorted(zt, z)), n - 1) for z in ztk])
+            ax.set_yticklabels([str(z) for z in ztk] if j == 0 else [])
+            plt.setp(ax.get_xticklabels(), visible=False)
+            for name, lam in F.LINES.items():
+                zt_track = wt / lam - 1
+                idx = np.interp(zt_track, zt, np.arange(n), left=-1, right=n + 1)
+                m = (zt_track >= zt[0]) & (zt_track <= zt[-1])
+                if m.sum() < 2:
+                    continue
+                ax.plot(wt[m], idx[m], "k--", lw=0.6, alpha=0.45)
+                if j == 0 and row == 0:
+                    p = int(0.5 * (m.sum() - 1))
+                    ax.text(wt[m][p], idx[m][p], name, fontsize=8, ha="center",
+                            va="bottom", alpha=0.9)
             if j == 0:
-                p = int(0.5 * (m.sum() - 1))
-                ax.text(wt[m][p], idx[m][p], name, fontsize=8, ha="center",
-                        va="bottom", alpha=0.9)
-        low = fig.add_subplot(gs[1, j], sharex=ax)
+                ax.set_ylabel(("LR grism $-$ HR target" if row == 0
+                               else "SR $-$ HR target") + "\nRedshift $z$")
+            if row == 0:
+                top.append(ax)
+        low = fig.add_subplot(gs[2, j])
+        lows.append(low)
         low.plot(wl, F._robust_sigma_cols(r_sr), lw=1.6, color="#1f77b4",
                  label=r"$\sigma_{\rm SR-HR}(\lambda)$")
         low.plot(wl, F._robust_sigma_cols(r_lr), lw=1.3, ls="--", color="0.4",
                  label=r"$\sigma_{\rm LR-HR}(\lambda)$")
         low.set_xlim(wl[0], wl[-1])
-        low.set_ylim(0, None)
         low.set_xlabel(r"Wavelength [$\mu$m]")
         if j == 0:
             low.set_ylabel(r"$\sigma$")
             low.legend(fontsize=8, frameon=False, loc="upper right", ncol=2)
         else:
             plt.setp(low.get_yticklabels(), visible=False)
-    ymax = max(a.get_ylim()[1] for a in fig.axes[1::2][:n_b])
-    for a in fig.axes[1::2][:n_b]:
+    ymax = max(a.get_ylim()[1] for a in lows)
+    for a in lows:
         a.set_ylim(0, ymax)
     _titled(top, caches)
-    top[0].set_ylabel(r"Redshift $z$")
-    cb = fig.colorbar(im, cax=fig.add_subplot(gs[0, n_b]))
-    cb.set_label(r"SR $-$ HR target (norm. flux)", fontsize=9)
-    cb.ax.tick_params(labelsize=8)
+    for row, (im, lab) in enumerate(zip(ims, ("LR $-$ HR (norm. flux)",
+                                              "SR $-$ HR (norm. flux)"),
+                                        strict=True)):
+        cb = fig.colorbar(im, cax=fig.add_subplot(gs[row, n_b]))
+        cb.set_label(lab, fontsize=9)
+        cb.ax.tick_params(labelsize=8)
     return F._save(fig, "residual_river_bands.png")
 
 
@@ -476,6 +496,53 @@ def plot_response_bands(bands=BANDS, outdir: str | None = None):
         fig.supxlabel("Line recoverability", fontsize=13)
         fig.tight_layout()
         return F._save(fig, "response_bands.png", outdir=outdir)
+
+
+# ---------------------------------------------------------------------------
+# [N II] / H-alpha
+# ---------------------------------------------------------------------------
+def nii_halpha_ratio(c, half_aa: float = 7.0,
+                     side_aa: tuple[float, float] = (45.0, 100.0)) -> dict:
+    """[N II] 6583 / H-alpha in the target and in the output, where H-alpha is detected.
+
+    Both lines are integrated over a rest-frame window of ``+/-half_aa`` above
+    a sideband continuum, which separates them in the target and in the
+    output (it cannot in the grism spectrum, where they are one feature).
+
+    The result is a statement about the simulation as much as about the
+    model: in OpenUniverse2024 the ratio is nearly the same for every galaxy,
+    so there is no galaxy-to-galaxy variation for a model to recover, and the
+    scatter of the output about the truth is larger than the scatter of the
+    truth itself.
+    """
+    wl = np.asarray(c["wl_um"]) * 1e4
+    z, hr, sr = np.asarray(c["z_true"]), np.asarray(c["hr"]), np.asarray(c["sr2"])
+
+    def flux(spec, zi, rest):
+        d = wl / (1.0 + zi) - rest
+        if d[0] > -side_aa[1] or d[-1] < side_aa[1]:
+            return np.nan
+        core = np.abs(d) < half_aa
+        side = (np.abs(d) > side_aa[0]) & (np.abs(d) < side_aa[1])
+        return float(np.sum(spec[core] - np.median(spec[side])))
+
+    rows = np.where(np.asarray(c["line_snr"])[:, 3] >= MIN_BEST_LINE_SNR)[0]
+    f = np.array([[flux(a[i], z[i], r) for a in (hr, sr) for r in (6562.8, 6583.5)]
+                  for i in rows])
+    ok = np.isfinite(f).all(axis=1) & (f[:, 0] > 0) & (f[:, 1] > 0)
+    f = f[ok]
+    true = f[:, 1] / f[:, 0]
+    good = (f[:, 2] > 0) & (f[:, 3] > 0)
+    out_ratio = f[good, 3] / f[good, 2]
+    lt, lo = np.log10(true[good]), np.log10(out_ratio)
+    return {"n": int(len(true)), "true_median": float(np.median(true)),
+            "true_p05": float(np.percentile(true, 5)),
+            "true_p95": float(np.percentile(true, 95)),
+            "true_scatter_dex": float(np.std(np.log10(true))),
+            "usable_frac": float(good.mean()),
+            "bias": float(np.median(out_ratio / true[good])),
+            "scatter_dex": float(np.std(lo - lt)),
+            "corr": float(np.corrcoef(lo, lt)[0, 1])}
 
 
 # ---------------------------------------------------------------------------

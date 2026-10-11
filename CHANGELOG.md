@@ -5,6 +5,22 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 
 ## [Unreleased]
 
+### Added
+
+- `evaluation.band_figures.nii_halpha_ratio`: [N II] 6583 / H-alpha in the
+  target and in the output, where H-alpha is detected. In OpenUniverse2024
+  the true ratio is nearly constant (median 0.08, 5th-95th percentiles
+  0.072-0.084), so the dataset cannot test the recovery of an individual
+  galaxy's ratio; the output reproduces the value on average with a scatter
+  of 0.26 dex.
+
+### Changed
+
+- The `sample` figure is one panel, the redshift distribution by strong-line
+  content; the best-line S/N histogram is gone.
+- `residual_river_bands` has a row for the grism input minus the target above
+  the row for the output minus the target, each with its own colour scale.
+
 ## [0.4.0] — 2026-10-11
 
 ### Added

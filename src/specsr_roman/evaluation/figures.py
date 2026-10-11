@@ -8,8 +8,8 @@ The figures, and what each is for:
 
 ``sample``
     What the held-out sample contains: the redshift distribution split by how
-    many strong lines fall in the grism band, and the distribution of the best
-    line's integrated S/N with the four recoverability bins marked.
+    many strong lines fall in the grism band, with the HLSS cosmology
+    selection outlined.
 
 ``spectra``
     HR / LR / SR2 overlay with a zoom inset on the blended complex. The inset
@@ -723,15 +723,13 @@ def _n_strong_in_band(wl, z):
 
 def plot_sample(c):
     wl, zt = c['wl_um'], c['z_true']
-    best = c['line_snr'].max(axis=1)
     nl = _n_strong_in_band(wl, zt)
     # the part of the sample the HLSS galaxy redshift survey would select
     hlss = hlss_cosmology_sample(zt, c['ha_flux'], c['oiii_flux'])
     hlss_kw = dict(histtype='step', color='k', lw=1.5, zorder=3)
 
-    fig, (a, b) = plt.subplots(1, 2, figsize=(12, 4.2))
-
-    # -- left: redshift, split by how many strong lines the band contains --
+    # redshift, split by how many strong lines the band contains
+    fig, a = plt.subplots(figsize=(6.4, 4.4))
     edges = np.linspace(0, max(3.0, zt.max()), 46)
     groups = [(nl == 0, 'no strong line in band', '0.72'),
               (nl == 1, 'one strong line', COLOR_SR),
@@ -743,37 +741,6 @@ def plot_sample(c):
     a.set_xlim(edges[0], edges[-1])
     a.set_xlabel(r'Redshift $z$'); a.set_ylabel('Number of spectra')
     a.legend(frameon=False, fontsize=10)
-
-    # -- right: the best line's integrated S/N, with the three bins --
-    lo, hi = 0.03, 100.0
-    x = np.clip(best, lo, hi)                    # pile the tails on the ends
-    a_edges = np.logspace(np.log10(lo), np.log10(hi), 50)
-    # below the cut no line is detected, and the lines are not judged there
-    below = np.mean(best < MIN_BEST_LINE_SNR)
-    b.axvspan(lo, MIN_BEST_LINE_SNR, color='0.97', zorder=0)
-    b.text(np.sqrt(lo * MIN_BEST_LINE_SNR), 0.97,
-           f'no detected line\n{100 * below:.0f}%',
-           transform=b.get_xaxis_transform(), ha='center', va='top',
-           fontsize=9.5, color='0.35')
-    shades = ['0.90', '0.97', '0.90']
-    for (name, (blo, bhi)), shade in zip(RECOVERABILITY_BINS.items(), shades,
-                                         strict=True):
-        blo, bhi = max(blo, lo), min(bhi, hi)
-        b.axvspan(blo, bhi, color=shade, zorder=0)
-        frac = np.mean((best >= RECOVERABILITY_BINS[name][0])
-                       & (best < RECOVERABILITY_BINS[name][1]))
-        # the marginal bin is narrow on this axis: drop its label a line so
-        # it clears its neighbours
-        b.text(np.sqrt(blo * bhi), 0.84 if name == 'marginal' else 0.97,
-               f'{name}\n{100 * frac:.0f}%',
-               transform=b.get_xaxis_transform(), ha='center', va='top',
-               fontsize=9.5)
-    b.hist(x, bins=a_edges, color=COLOR_LR, zorder=2)
-    b.hist(x[hlss], bins=a_edges, **hlss_kw)
-    b.set_xscale('log'); b.set_xlim(lo, hi)
-    b.set_ylim(0, b.get_ylim()[1] * 1.28)        # headroom for the labels
-    b.set_xlabel('Integrated S/N of the best line in the grism spectrum')
-    b.set_ylabel('Number of spectra')
     fig.tight_layout()
     _save(fig, 'sample.png')
 
