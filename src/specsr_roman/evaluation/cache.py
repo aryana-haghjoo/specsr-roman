@@ -17,7 +17,12 @@ import numpy as np
 import torch
 
 from ..checkpoints import CANONICAL_CHAIN, load_sr1, load_sr2, load_zhead_ckpt
-from ..data import RomanFixedGridDataset, apply_phot_noise, get_or_make_group_split
+from ..data import (
+                      RomanFixedGridDataset,
+                      apply_phot_noise,
+                      get_or_make_group_split,
+                      normalize,
+)
 from ..inference.pipeline import build_sr2_input
 from ..lines import LINE_LIST_REST_AA, angstrom_to_micron
 from ..models import constrain_delta
@@ -43,6 +48,8 @@ class CacheConfig:
     delta_cap: float = 40.0
     sigma_base_um: float = 0.005
     z_topk: int = 3
+    #: False for a redshift head trained on photometry alone.
+    zhead_use_spectrum: bool = True
     out: str = "outputs/pred_cache.npz"
 
 
@@ -96,11 +103,14 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
     ztr = ds.z[train_rows].numpy()
     zmean, zstd = float(ztr.mean()), float(ztr.std())
     zminn, zmaxn = (ztr.min() - zmean) / zstd, (ztr.max() - zmean) / zstd
-    run_cfg = {"z_topk": cfg.z_topk, "sigma_base_um": cfg.sigma_base_um}
+    run_cfg = {"z_topk": cfg.z_topk, "sigma_base_um": cfg.sigma_base_um,
+               "zhead_use_spectrum": cfg.zhead_use_spectrum}
 
     cols: dict[str, list] = {k: [] for k in
                              ("lr", "lr_err", "sr1", "sr2", "hr", "sigma",
-                              "z_true", "z_pred", "line_snr")}
+                              "z_true", "z_pred", "line_snr",
+                              "hr_mean", "hr_std", "lr_mean", "lr_std",
+                              "ab_h158")}
     gen = torch.Generator(device=device).manual_seed(cfg.noise_seed)
     with torch.no_grad():
         for s in range(0, len(test_idx), cfg.batch_size):
@@ -133,6 +143,15 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
             cols["z_true"].append(z_true.cpu().numpy())
             cols["z_pred"].append(z_modes[:, 0].cpu().numpy())
             cols["line_snr"].append(snr.numpy())
+            # What turns the normalised arrays back into flux: SR and HR share
+            # the target's statistics, the input has its own, and the H158
+            # magnitude is the only absolute scale a row carries.
+            cols["hr_mean"].append(np.array([float(b[4]) for b in batch]))
+            cols["hr_std"].append(np.array([float(b[5]) for b in batch]))
+            lr_stats = [normalize(ds.lo_raw[i])[1:] for i in rows]
+            cols["lr_mean"].append(np.array([m for m, _ in lr_stats]))
+            cols["lr_std"].append(np.array([s for _, s in lr_stats]))
+            cols["ab_h158"].append(np.asarray(ds.ab_h158[rows], dtype=np.float64))
             print(f"  cached {s + len(rows)}/{len(test_idx)}", end="\r")
     print()
 

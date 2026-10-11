@@ -68,7 +68,13 @@
    :members: AblationConfig, run_ablation, plot_ablation
 
 .. automodule:: specsr_roman.evaluation.prior_dominance
-   :members: PriorDominanceConfig, run_prior_dominance
+   :members: PriorDominanceConfig, run_prior_dominance, plot_response
+
+.. automodule:: specsr_roman.evaluation.band_figures
+   :members: BandConfig, BANDS, load_band_caches, line_fluxes, flux_stats, measure_band_metrics, make_band_figures, plot_response_bands
+
+.. automodule:: specsr_roman.evaluation.linefit
+   :members: ROMAN_FIT, fit_line_sideband_weighted, line_flux_from_fit, measure_line_fluxes
 ```
 
 ## Extraction

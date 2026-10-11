@@ -5,8 +5,31 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-11
+
 ### Added
 
+- **One SR2 per redshift configuration, and the evaluation to match.**
+  `evaluation.band_figures` draws every SR2 evaluation once per redshift head
+  (three Roman bands; with Rubin at one-year and ten-year depth; nine bands
+  and no spectrum): example spectrum, residual maps, power spectra, line
+  recovery, line S/N, the response test and the line-flux comparison.
+  `specsr-roman evaluate band-figures` renders them and writes
+  `band_metrics.json`. New configs `sr2_rubin_y1.yaml` and
+  `sr2_photonly_rubin_y10.yaml`; `scripts/run_chain.sh sr2_bands` trains them.
+  All four SR2 checkpoints and their prediction caches are on the Hub.
+- **Line-flux comparison.** `evaluation.linefit` is the Gaussian line fit of
+  the JWST companion package, with windows for the grism band. Fitted fluxes
+  of the output and of the grism input are compared with the same fit on the
+  target. For detected H-alpha the median ratio is 1.00 with 7% of lines off
+  by more than a factor of two, against 1.05 and 10% for the input; for
+  [O III] 5007, 0.89 and 5% against 0.91 and 25%.
+- `zhead_use_spectrum` (SR2 config, prediction cache, audit): a redshift head
+  trained on photometry alone gets its spectral channels blanked, as in its
+  own training, while SR2 still reads the spectrum.
+- The prediction cache stores `hr_mean`, `hr_std`, `lr_mean`, `lr_std` and
+  `ab_h158`, which turn its normalised arrays back into flux. A cache written
+  before them is completed from the dataset on load.
 - `specsr-roman evaluate prior` audits the full pipeline as well as SR1 when
   given `--zhead` and `--sr2`, reports the response exponent per
   recoverability bin, and writes `outputs/prior_dominance.json` and the

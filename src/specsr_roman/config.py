@@ -206,6 +206,9 @@ class SR2Config:
     lam_z_warmup: int = 5
     zhead_finetune: bool = True
     zhead_lr_mult: float = 0.1
+    #: False for a redshift head trained on photometry alone: its spectral
+    #: channels are blanked, as they were when it was trained.
+    zhead_use_spectrum: bool = True
 
     # run plumbing
     out_prefix: str = "sr2_roman"

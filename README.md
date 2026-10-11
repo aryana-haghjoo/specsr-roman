@@ -145,6 +145,24 @@ contain, but their strengths still lean on the simulation, so line fluxes and
 ratios from the output are not yet measurements. See
 [Limitations](#limitations).
 
+**SR2 by redshift configuration.** SR2 places its lines at the redshifts it is
+given, so there is one SR2 for each redshift head, and every SR2 evaluation is
+drawn once per configuration (`specsr-roman evaluate band-figures`). The line
+fluxes are integrals of Gaussian fits, compared with the same fit on the
+target, for lines detected in the grism.
+
+| Redshift head | NMAD | recovery, marginal / good / strong | Hα flux / truth | [O III] flux / truth | response r |
+|---|---|---|---|---|---|
+| Roman Y106, J129, H158 | 0.0043 | 0.87 / 0.92 / 0.89 | 1.00 | 0.89 | 0.16 |
+| + Rubin *ugrizy*, 1 yr | 0.0030 | 0.89 / 0.93 / 0.87 | 1.00 | 0.85 | 0.15 |
+| + Rubin *ugrizy*, 10 yr | 0.0029 | 0.85 / 0.92 / 0.88 | 0.99 | 0.83 | 0.16 |
+| 9 bands, no spectrum (control) | 0.0131 | 0.80 / 0.90 / 0.87 | 0.96 | 0.84 | 0.18 |
+
+The redshift head barely changes SR2: it acts where a line is detected, and
+there the three-band redshift is already right. For comparison, the same fit on
+the grism input gives an Hα ratio of 1.05 with 10 % of lines off by more than a
+factor of two (6–7 % after SR2), and an [O III] ratio of 0.91 with 25 % (5 %).
+
 ---
 
 ## How it works

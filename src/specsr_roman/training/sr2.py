@@ -72,7 +72,8 @@ def train(cfg: SR2Config) -> dict:
     device = pick_device()
     out_dir = ensure_dir(cfg.out_dir)
     dataset_path = os.path.abspath(cfg.data)
-    run_cfg = {"sigma_base_um": cfg.sigma_base_um, "z_topk": cfg.z_topk}
+    run_cfg = {"sigma_base_um": cfg.sigma_base_um, "z_topk": cfg.z_topk,
+               "zhead_use_spectrum": cfg.zhead_use_spectrum}
 
     # The dataset must expose photometry when, and only when, the ZHead
     # consumes it -- detect that from the checkpoint before building anything.

@@ -85,6 +85,7 @@ class PriorDominanceConfig:
     delta_cap: float = 40.0
     sigma_base_um: float = 0.005
     z_topk: int = 3
+    zhead_use_spectrum: bool = True
 
 
 def _find_strongest_line(flux_hi, smooth_px: int = 101):
@@ -155,7 +156,8 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
         ztr = ds.z[np.setdiff1d(np.arange(len(ds)), test_idx)].numpy()
         zmean, zstd = float(ztr.mean()), float(ztr.std())
         zminn, zmaxn = (ztr.min() - zmean) / zstd, (ztr.max() - zmean) / zstd
-        run_cfg = {"z_topk": cfg.z_topk, "sigma_base_um": cfg.sigma_base_um}
+        run_cfg = {"z_topk": cfg.z_topk, "sigma_base_um": cfg.sigma_base_um,
+                   "zhead_use_spectrum": cfg.zhead_use_spectrum}
         gen = torch.Generator(device=device).manual_seed(cfg.noise_seed)
 
     def run_models(lr_hr_grid, err_hr_grid, phot=None):

@@ -40,6 +40,11 @@ def build_sr2_input(x_low, sr1, zhead, wave_hi_um, line_rest_um, cfg,
     precomputed ``(mean, log_var)`` to reuse a forward pass the caller has
     already made rather than running SR1 again.
 
+    ``cfg["zhead_use_spectrum"] = False`` blanks the spectral channels of the
+    redshift head, for a head trained on photometry alone (the control of the
+    band comparison). Such a head has never seen a spectrum, so feeding it one
+    would be out of distribution. SR2 itself still reads the spectrum.
+
     For the P(z) head, M = ``z_topk`` distinct modes are extracted and the mask
     channel is their mass-weighted union. Giving SR2 several hypotheses rather
     than one point estimate is what makes it robust to alias errors: when the
@@ -53,6 +58,8 @@ def build_sr2_input(x_low, sr1, zhead, wave_hi_um, line_rest_um, cfg,
 
     if isinstance(zhead, ZHeadClf):
         z_in = torch.cat([x_low, sr1_mean, sr1_log_sigma], dim=1)
+        if not cfg.get("zhead_use_spectrum", True):
+            z_in = torch.zeros_like(z_in)
         probs = torch.softmax(zhead(z_in, phot=phot), dim=-1)
         z_modes, z_w = topk_modes(probs, zhead.z_centers, cfg["z_topk"])
         z_modes = torch.nan_to_num(z_modes, nan=float(z_mean))

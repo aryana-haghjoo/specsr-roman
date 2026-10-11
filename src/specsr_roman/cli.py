@@ -116,6 +116,8 @@ def build_parser() -> argparse.ArgumentParser:
     ca.add_argument("--sr1", default=None)
     ca.add_argument("--zhead", default=None)
     ca.add_argument("--sr2", default=None)
+    ca.add_argument("--no-zhead-spectrum", action="store_true",
+                    help="the redshift head was trained on photometry alone")
     ca.add_argument("--phot-tier", default=None,
                     help="band set the ZHead was trained on (default: medium)")
 
@@ -139,6 +141,11 @@ def build_parser() -> argparse.ArgumentParser:
     df.add_argument("--rebuild", action="store_true",
                     help="re-disperse the example detector image (needs grizli)")
 
+    bf = ev_sub.add_parser("band-figures",
+                           help="the SR2 evaluation, one panel per redshift "
+                                "configuration")
+    bf.add_argument("--outdir", default="outputs/figures")
+
     ab = ev_sub.add_parser("ablation",
                            help="photometry ablation: with and without colours")
     ab.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
@@ -154,6 +161,8 @@ def build_parser() -> argparse.ArgumentParser:
     pd.add_argument("--zhead", default=None,
                     help="with --sr2: audit the full pipeline as well")
     pd.add_argument("--sr2", default=None)
+    pd.add_argument("--phot-tier", default=None)
+    pd.add_argument("--no-zhead-spectrum", action="store_true")
     pd.add_argument("--max-sources", type=int, default=100000)
     pd.add_argument("--json", default="outputs/prior_dominance.json")
     pd.add_argument("--outdir", default="outputs/figures")
@@ -290,6 +299,8 @@ def _cmd_evaluate(args) -> int:
                          ("phot_tier", args.phot_tier)):
             if val:
                 kwargs[key] = val
+        if args.no_zhead_spectrum:
+            kwargs["zhead_use_spectrum"] = False
         build_prediction_cache(CacheConfig(**kwargs))
         return 0
 
@@ -331,6 +342,17 @@ def _cmd_evaluate(args) -> int:
                              dataset=args.data, **kw)
         return 0
 
+    if args.what == "band-figures":
+        import matplotlib
+        matplotlib.use("Agg")
+        from .evaluation.band_figures import make_band_figures, plot_response_bands
+        make_band_figures(outdir=args.outdir)
+        try:
+            plot_response_bands(outdir=args.outdir)
+        except SystemExit as exc:
+            print(f"response panels skipped: {exc}")
+        return 0
+
     if args.what == "ablation":
         from .evaluation.ablation import AblationConfig, run_ablation
         ckpts = {k: v for k, v in (("sr1_ckpt", args.sr1),
@@ -346,6 +368,10 @@ def _cmd_evaluate(args) -> int:
             kwargs["sr1_ckpt"] = args.sr1
         if args.zhead and args.sr2:
             kwargs.update(zhead_ckpt=args.zhead, sr2_ckpt=args.sr2)
+        if args.phot_tier:
+            kwargs["phot_tier"] = args.phot_tier
+        if args.no_zhead_spectrum:
+            kwargs["zhead_use_spectrum"] = False
         import matplotlib
         matplotlib.use("Agg")
         from .evaluation.prior_dominance import plot_response

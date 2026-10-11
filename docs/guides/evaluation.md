@@ -72,6 +72,34 @@ from specsr_roman.evaluation.figures import make_figures
 make_figures(cache, which=["spectra", "redshift"], outdir="figures/")
 ```
 
+### One panel per redshift configuration
+
+SR2 places its lines at the redshifts it is given, so its evaluation depends on
+the redshift head behind it. `specsr_roman.evaluation.band_figures.BANDS` lists
+four configurations (three Roman bands; the same with Rubin at one-year and at
+ten-year depth; nine bands and no spectrum), each with its own SR2 checkpoint
+and prediction cache (`outputs/pred_cache.npz` for the first,
+`outputs/pred_cache_<key>.npz` for the others; all four are on the Hub).
+
+```bash
+specsr-roman evaluate band-figures      # every figure below, plus band_metrics.json
+```
+
+| File | What it shows |
+|---|---|
+| `spectra_examples_bands` | one galaxy, the output under each configuration |
+| `residual_river_bands` | SR2 minus target, sorted by z, and its scatter |
+| `psd_bands` | signal and residual power spectra |
+| `line_recovery_bands` | recovered flux fraction per recoverability bin |
+| `line_flux_bands` | Gaussian-fit line flux against the target, input and SR2 |
+| `sn_comparison_bands` | per-line S/N, SR2 against the input |
+| `response_bands` | the prior-dominance response exponent per bin |
+
+The line-flux comparison is the one the others cannot replace. S/N never looks
+at the target, so only flux against the target says whether a line is right.
+The fit (`specsr_roman.evaluation.linefit`) is the one of the JWST companion
+package. A configuration whose cache is missing is left out of the figures.
+
 ## Audits
 
 Worth re-running after any retrain — this is the code that backs the

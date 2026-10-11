@@ -73,8 +73,21 @@ for stage in "${stages[@]}"; do
           --config configs/sr2_rubin_y10.yaml --sr1-ckpt "$SR1_CKPT" \
           --zhead-ckpt "$RUBIN_CKPT" --out-dir "$RUNS/sr2"
       ;;
+    sr2_bands)
+      # one SR2 per redshift configuration of the band comparison; the
+      # three-band and ten-year ones come from the sr2 and rubin stages
+      [[ -f "$SR1_CKPT" ]] || { echo "missing $SR1_CKPT — run the sr1 stage first" >&2; exit 1; }
+      run sr2_ou2024_v5_rubin_y1 specsr-roman train sr2 \
+          --config configs/sr2_rubin_y1.yaml --sr1-ckpt "$SR1_CKPT" \
+          --zhead-ckpt "$RUNS/zhead/zhead_ou2024_roman_med3_rubin_y1_best.pth" \
+          --out-dir "$RUNS/sr2"
+      run sr2_ou2024_v5_photonly_rubin_y10 specsr-roman train sr2 \
+          --config configs/sr2_photonly_rubin_y10.yaml --sr1-ckpt "$SR1_CKPT" \
+          --zhead-ckpt "$RUNS/zhead/zhead_ou2024_photonly_rubin_y10_best.pth" \
+          --out-dir "$RUNS/sr2"
+      ;;
     *)
-      echo "unknown stage: $stage (expected sr1, zhead, sr2 or rubin)" >&2; exit 2
+      echo "unknown stage: $stage (expected sr1, zhead, sr2, rubin or sr2_bands)" >&2; exit 2
       ;;
   esac
 done

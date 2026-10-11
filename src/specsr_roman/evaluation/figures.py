@@ -373,9 +373,86 @@ def _inset_slot(ax, wl, curves, zoom_x, width=0.40, height=0.51, bottom=0.34):
     return [best, bottom, width, height]
 
 
-def plot_spectra(c, n_examples=2):
+def _draw_example(ax, c, i, used_groups, sr_label='SR (ours)'):
+    """One example panel: target, grism input and output, with a zoom inset."""
     wl, lr, s2, hr = c['wl_um'], c['lr'], c['sr2'], c['hr']
     zt, zp = c['z_true'], c['z_pred']
+    z = float(zt[i])
+    rep = _line_report(wl, hr[i], s2[i], z, c['line_snr'][i])
+    ax.plot(wl, hr[i], color=COLOR_HR, lw=1.0, alpha=0.75,
+            label='HR target', zorder=1)
+    ax.plot(wl, lr[i], color=COLOR_LR, lw=1.05, ls='--', alpha=0.85,
+            label='LR grism', zorder=2)
+    ax.plot(wl, s2[i], color=COLOR_SR, lw=1.5, alpha=0.95,
+            label=sr_label, zorder=3)
+    ax.set_xlim(wl[0], wl[-1])
+    ax.set_ylabel(r'$F_\lambda$ (normalized)')
+
+    y_lo, y_hi = _robust_ylims(np.concatenate([hr[i], lr[i], s2[i]]))
+    y_hi = max(y_hi, 1.05 * max(hr[i].max(), s2[i].max()))
+    # the wide panel names the complex; the inset splits the doublet
+    det = {r['lam_rest']: r for r in rep}
+    marks = []
+    for name, lam_rest in MAIN_LABELS:
+        r = min(det.values(), key=lambda q: abs(q['lam_rest'] - lam_rest),
+                default=None)
+        # a name goes only on a line that is itself in the report, i.e.
+        # detected; a looser match would name its undetected neighbours
+        if r is None or abs(r['lam_rest'] - lam_rest) > 0.003 or r['snr'] < 5:
+            continue
+        marks.append((name, lam_rest * (1 + z)))
+    _annotate_lines(ax, marks, y_lo, y_hi, head=0.13, fontsize=8.5)
+
+    # ---- zoom inset on the strongest line complex in band ----
+    key = _pick_inset_group(wl, hr[i], z, rep, avoid=used_groups)
+    slot, x0, x1, m = None, None, None, None
+    if key is not None:
+        rest_lo, rest_hi = LINE_GROUPS[key]['rest']
+        x0 = max(rest_lo * (1 + z), float(wl[0]))
+        x1 = min(rest_hi * (1 + z), float(wl[-1]))
+        m = (wl >= x0) & (wl <= x1)
+        if m.sum() >= 10:
+            used_groups.add(key)
+            slot = _inset_slot(ax, wl, (hr[i], s2[i]), (x0, x1))
+        else:
+            key = None
+
+    # the redshift label takes whichever top corner the inset left free
+    z_right = slot is not None and slot[0] < 0.5
+    ax.text(0.988 if z_right else 0.012, 0.865,
+            rf'$z_{{\rm true}}={z:.3f}\ \ \hat z={zp[i]:.3f}$',
+            transform=ax.transAxes, va='top',
+            ha='right' if z_right else 'left', fontsize=11, zorder=8,
+            bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='0.6',
+                      alpha=0.9))
+    if key is None:
+        return
+
+    zoom = np.concatenate([hr[i][m], lr[i][m], s2[i][m]])
+    zy_lo = _robust_ylims(zoom, p_lo=1, p_hi=99, pad_frac=0.10)[0]
+    zy_hi = float(np.nanmax(zoom))
+    zy_hi += 0.06 * (zy_hi - zy_lo)
+    # bracket the zoomed range on the wide panel
+    for xb in (x0, x1):
+        ax.axvline(xb, color='k', ls=':', lw=1.1, alpha=0.85,
+                   ymax=1.0 / 1.13, zorder=5)
+
+    # the inset stops below the label band so the two never overlap
+    axin = ax.inset_axes(slot)
+    axin.plot(wl[m], hr[i][m], color=COLOR_HR, lw=1.1, alpha=0.8, zorder=1)
+    axin.plot(wl[m], lr[i][m], color=COLOR_LR, lw=1.1, ls='--', alpha=0.85,
+              zorder=2)
+    axin.plot(wl[m], s2[i][m], color=COLOR_SR, lw=1.6, alpha=0.95, zorder=3)
+    axin.set_xlim(x0, x1)
+    axin.tick_params(labelsize=7.5)
+    axin.set_facecolor('white')
+    zmarks = [(r['name'], r['lam_obs']) for r in rep
+              if x0 <= r['lam_obs'] <= x1 and r['snr'] > 4]
+    _annotate_lines(axin, zmarks, zy_lo, zy_hi, head=0.19, fontsize=7.5)
+
+
+def plot_spectra(c, n_examples=2):
+    zt = c['z_true']
 
     order = _rank_line_examples(c)
     if not order:
@@ -395,78 +472,7 @@ def plot_spectra(c, n_examples=2):
                              squeeze=False, sharex=True,
                              constrained_layout=True)
     for ax, i in zip(axes[:, 0], picks, strict=False):
-        z = float(zt[i])
-        rep = _line_report(wl, hr[i], s2[i], z, c['line_snr'][i])
-        ax.plot(wl, hr[i], color=COLOR_HR, lw=1.0, alpha=0.75,
-                label='HR target', zorder=1)
-        ax.plot(wl, lr[i], color=COLOR_LR, lw=1.05, ls='--', alpha=0.85,
-                label='LR grism', zorder=2)
-        ax.plot(wl, s2[i], color=COLOR_SR, lw=1.5, alpha=0.95,
-                label='SR (ours)', zorder=3)
-        ax.set_xlim(wl[0], wl[-1])
-        ax.set_ylabel(r'$F_\lambda$ (normalized)')
-
-        y_lo, y_hi = _robust_ylims(np.concatenate([hr[i], lr[i], s2[i]]))
-        y_hi = max(y_hi, 1.05 * max(hr[i].max(), s2[i].max()))
-        # the wide panel names the complex; the inset splits the doublet
-        det = {r['lam_rest']: r for r in rep}
-        marks = []
-        for name, lam_rest in MAIN_LABELS:
-            r = min(det.values(), key=lambda q: abs(q['lam_rest'] - lam_rest),
-                    default=None)
-            # a name goes only on a line that is itself in the report, i.e.
-            # detected; a looser match would name its undetected neighbours
-            if r is None or abs(r['lam_rest'] - lam_rest) > 0.003 or r['snr'] < 5:
-                continue
-            marks.append((name, lam_rest * (1 + z)))
-        _annotate_lines(ax, marks, y_lo, y_hi, head=0.13, fontsize=8.5)
-
-        # ---- zoom inset on the strongest line complex in band ----
-        key = _pick_inset_group(wl, hr[i], z, rep, avoid=used_groups)
-        slot, x0, x1, m = None, None, None, None
-        if key is not None:
-            rest_lo, rest_hi = LINE_GROUPS[key]['rest']
-            x0 = max(rest_lo * (1 + z), float(wl[0]))
-            x1 = min(rest_hi * (1 + z), float(wl[-1]))
-            m = (wl >= x0) & (wl <= x1)
-            if m.sum() >= 10:
-                used_groups.add(key)
-                slot = _inset_slot(ax, wl, (hr[i], s2[i]), (x0, x1))
-            else:
-                key = None
-
-        # the redshift label takes whichever top corner the inset left free
-        z_right = slot is not None and slot[0] < 0.5
-        ax.text(0.988 if z_right else 0.012, 0.865,
-                rf'$z_{{\rm true}}={z:.3f}\ \ \hat z={zp[i]:.3f}$',
-                transform=ax.transAxes, va='top',
-                ha='right' if z_right else 'left', fontsize=11, zorder=8,
-                bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='0.6',
-                          alpha=0.9))
-        if key is None:
-            continue
-
-        zoom = np.concatenate([hr[i][m], lr[i][m], s2[i][m]])
-        zy_lo = _robust_ylims(zoom, p_lo=1, p_hi=99, pad_frac=0.10)[0]
-        zy_hi = float(np.nanmax(zoom))
-        zy_hi += 0.06 * (zy_hi - zy_lo)
-        # bracket the zoomed range on the wide panel
-        for xb in (x0, x1):
-            ax.axvline(xb, color='k', ls=':', lw=1.1, alpha=0.85,
-                       ymax=1.0 / 1.13, zorder=5)
-
-        # the inset stops below the label band so the two never overlap
-        axin = ax.inset_axes(slot)
-        axin.plot(wl[m], hr[i][m], color=COLOR_HR, lw=1.1, alpha=0.8, zorder=1)
-        axin.plot(wl[m], lr[i][m], color=COLOR_LR, lw=1.1, ls='--', alpha=0.85,
-                  zorder=2)
-        axin.plot(wl[m], s2[i][m], color=COLOR_SR, lw=1.6, alpha=0.95, zorder=3)
-        axin.set_xlim(x0, x1)
-        axin.tick_params(labelsize=7.5)
-        axin.set_facecolor('white')
-        zmarks = [(r['name'], r['lam_obs']) for r in rep
-                  if x0 <= r['lam_obs'] <= x1 and r['snr'] > 4]
-        _annotate_lines(axin, zmarks, zy_lo, zy_hi, head=0.19, fontsize=7.5)
+        _draw_example(ax, c, i, used_groups)
 
     axes[-1, 0].set_xlabel(r'Observed wavelength [$\mu$m]')
     # one legend for the whole figure, outside the axes: an in-panel legend has

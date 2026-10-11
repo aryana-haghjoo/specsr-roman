@@ -1,0 +1,39 @@
+# SR2 on the photometry-only control: configs/sr2_rubin_y10.yaml with the
+# redshift coming from `zhead_ou2024_photonly_rubin_y10`, which reads the nine
+# bands and no spectrum. The head's spectral channels are blanked here as they
+# were when it was trained; SR2 itself still reads the spectrum. Not a model to
+# deploy: it shows what SR2 does with a redshift the grism did not help set.
+#
+#   specsr-roman train sr2 --config configs/sr2_photonly_rubin_y10.yaml
+data: data/dataset/ou2024_h10307_dataset.npz
+sr1_ckpt: sr1_ou2024_v6
+zhead_ckpt: zhead_ou2024_photonly_rubin_y10
+zhead_use_spectrum: false
+phot_tier: medium_rubin
+epochs: 150
+
+batch_size: 32
+lr: 1.0e-4
+weight_decay: 2.0e-5
+grad_clip: 0.5
+
+delta_cap: 40.0
+sigma_base_um: 0.005
+z_topk: 3
+
+lam_hp_in: 3.0
+lam_hp_out: 0.3
+hp_k: 51
+lam_sparse: 0.0
+lam_lineflux: 1.0
+lam_hallu: 1.0
+hallu_snr0: 1.0
+lam_presence: 0.3
+presence_thresh: 3.0
+label_sigma: 0.03
+
+lam_z: 0.0
+lam_z_warmup: 5
+zhead_finetune: true
+zhead_lr_mult: 0.1
+out_prefix: sr2_ou2024_v5_photonly_rubin_y10

@@ -44,7 +44,11 @@ phot_eval_mag_err: 0.05   # never score against noiseless truth photometry
 `medium` is the three Roman bands of the published chain. `medium_rubin` adds
 Rubin *ugrizy* with the sky-limited noise of a coadd `rubin_depth_offset`
 magnitudes shallower than the ten-year one (`configs/zhead_rubin_y10.yaml`,
-`configs/zhead_rubin_y1.yaml`). `grids.MAX_PHOT_BANDS` refuses an explicit band
+`configs/zhead_rubin_y1.yaml`). Each redshift head has its own SR2
+(`configs/sr2.yaml`, `sr2_rubin_y1.yaml`, `sr2_rubin_y10.yaml`,
+`sr2_photonly_rubin_y10.yaml`), identical except for the head it reads;
+`scripts/run_chain.sh rubin sr2_bands` trains the ones beyond the published
+three-band chain. `grids.MAX_PHOT_BANDS` refuses an explicit band
 list longer than those nine. Feeding a model more bands than a survey delivers
 with the grism hands it an effectively complete, noiseless SED, from which the
 redshift can be read without the spectrum contributing anything —
