@@ -76,14 +76,26 @@ def build_parser() -> argparse.ArgumentParser:
     ex_sub = ex.add_subparsers(dest="action", required=True)
     for action, helptext in (("run", "drive extraction over many SCAs"),
                              ("worker", "extract one (visit, SCA) [internal]"),
-                             ("merge", "merge per-SCA caches into a dataset")):
+                             ("merge", "merge per-SCA caches into a dataset"),
+                             ("select", "keep the spectra above the survey's "
+                                        "line-flux limit")):
         sp = ex_sub.add_parser(action, help=helptext)
         sp.add_argument("--data-dir", default="data/ou2024")
         sp.add_argument("--healpix", type=int, default=10307)
+        # run / worker / merge build the deep dataset, every galaxy the image
+        # detects; select writes the training dataset from it
+        deep = "data/dataset/ou2024_h10307_deep_dataset.npz"
         sp.add_argument("--out-dataset",
-                        default="data/dataset/ou2024_h10307_dataset.npz")
-        sp.add_argument("--ab-target", type=float, default=22.5)
-        sp.add_argument("--ab-scene", type=float, default=23.0)
+                        default=("data/dataset/ou2024_h10307_dataset.npz"
+                                 if action == "select" else deep))
+        if action == "select":
+            sp.add_argument("--deep-dataset", default=deep)
+            sp.add_argument("--line-flux", type=float, default=1.0e-16,
+                            help="H-alpha or [O III] flux limit [erg/s/cm2]")
+        sp.add_argument("--ab-target", type=float, default=99.0,
+                        help="magnitude cut on targets (default: none)")
+        sp.add_argument("--ab-scene", type=float, default=99.0,
+                        help="magnitude cut on the dispersed scene (default: none)")
         sp.add_argument("--min-hp-frac", type=float, default=0.7)
         sp.add_argument("--grism-exptime", type=float, default=301.0)
         sp.add_argument("--cleanup", action="store_true")
@@ -245,6 +257,9 @@ def _cmd_extract(args) -> int:
         run_batch(cfg)
     elif args.action == "worker":
         run_worker(args.visit, args.sca, cfg)
+    elif args.action == "select":
+        from .extraction.batch import select_line_flux
+        select_line_flux(args.deep_dataset, args.out_dataset, args.line_flux)
     else:
         merge(cfg)
     return 0

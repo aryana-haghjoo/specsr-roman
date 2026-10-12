@@ -25,11 +25,12 @@ by the detectability of the injected change, and judge ``r`` only where the
 information is physically present. Aggregate ``r`` is dominated by
 unrecoverable cases and understates a good model.
 
-Measured on this project, on the 3,242 held-out spectra with a detected line
-(S/N >= 2): 0.25 for the published SR1 and 0.16 for the full pipeline. By
-recoverability bin (marginal, good, strong): 0.27, 0.18, 0.33 for SR1 and
-0.12, 0.13, 0.33 for the full pipeline. SR2 lowers the response where lines
-are faint, which is where it adds the most flux.
+Measured on this project, on the 3,552 held-out spectra with a detected line
+(S/N >= 2): 0.22 for the published SR1 and 0.17 for the full pipeline. By
+recoverability bin (marginal, good, strong): 0.27, 0.21, 0.12 for SR1 and
+0.14, 0.16, 0.24 for the full pipeline. SR2 lowers the response where lines
+are faint, which is where it adds the most flux, and raises it where they are
+strong.
 Anti-prior augmentation raised an earlier SR1 from 0.14 to 0.51 at fixed
 detectability, at the cost of absolute line recovery, which is why the
 published SR1 is the unaugmented one and this remains open work.

@@ -11,13 +11,18 @@ path = hf_hub_download("aryana-haghjoo/romansr-data",
                        "ou2024_h10307_dataset.npz", repo_type="dataset")
 ```
 
-36,404 extracted spectra of 15,434 galaxies, healpix 10307, 0.06 < z < 3.1.
+23,845 extracted spectra of 10,039 galaxies, healpix 10307, 0.55 < z < 2.6:
+every galaxy detected in the H158 images whose true Hα or [O III] λ5007 flux
+exceeds 10⁻¹⁶ erg s⁻¹ cm⁻², the line-flux limit of the Roman spectroscopic
+survey. The extraction before that selection, 144,077 spectra of 68,806
+galaxies with no magnitude cut, is in the same repo as
+`ou2024_h10307_deep_dataset.npz` (1.1 GB).
 
 ### The tutorial subset
 
 A 3.8 MB, 512-row sample sits in the same repo under `tutorial/`, for the
 [getting-started notebook](../tutorials/01_getting_started.ipynb) and for any
-quick check that does not need 271 MB:
+quick check that does not need 180 MB:
 
 ```python
 path = hf_hub_download("aryana-haghjoo/romansr-data",

@@ -31,7 +31,13 @@ from .frames import prepare_frames
 from .seds import SEDLibrary
 from .simulate import add_grism_noise, disperse_scene
 
-__all__ = ["ExtractionConfig", "run_worker", "run_batch", "merge"]
+__all__ = ["ExtractionConfig", "run_worker", "run_batch", "merge",
+           "select_line_flux", "SURVEY_LINE_FLUX_LIMIT"]
+
+#: Line-flux limit of the Roman High Latitude Spectroscopic Survey
+#: [erg/s/cm2] (Wang et al. 2022). The training sample is the galaxies with
+#: H-alpha or [O III] 5007 above it, which is the survey's own selection.
+SURVEY_LINE_FLUX_LIMIT = 1.0e-16
 
 
 @dataclass
@@ -40,12 +46,22 @@ class ExtractionConfig:
 
     healpix: int = 10307
     data_dir: str = "data/ou2024"
-    out_dataset: str = "data/dataset/ou2024_h10307_dataset.npz"
+    #: The merged extraction, before the line-flux selection of
+    #: :func:`select_line_flux`.
+    out_dataset: str = "data/dataset/ou2024_h10307_deep_dataset.npz"
 
     max_scas: int = 60
     workers: int = 4
-    ab_target: float = 22.5      # extract galaxies brighter than this
-    ab_scene: float = 23.0       # disperse (as contamination) brighter than this
+    # No magnitude cut by default: the sample is every galaxy the H158 image
+    # detects, and the limit is the detection itself (about 25 mag). Until
+    # 2026-10-11 the targets were cut at 22.5 and the scene at 23.0, which
+    # removed the faint line emitters at z > 1 that the survey is after.
+    ab_target: float = 99.0      # extract galaxies brighter than this
+    ab_scene: float = 99.0       # disperse (as contamination) brighter than this
+    #: A detection keeps its catalogue identity only if the catalogue magnitude
+    #: agrees with the detected flux to this many magnitudes. It removes the
+    #: detections whose only counterpart is a far fainter object.
+    max_dmag: float = 1.0
     min_hp_frac: float = 0.7     # skip pointings mostly outside the healpix
     grism_exptime: float = GRISM_EXPTIME
     cleanup: bool = False        # delete raw/prepared FITS after each SCA
@@ -91,6 +107,26 @@ def _load_catalogues(cfg: ExtractionConfig):
     return redshifts, flux_row, flux_cols
 
 
+def _magnitude_consistent(det_flux, ab, matched, max_dmag: float,
+                          bright: float = 21.0) -> np.ndarray:
+    """Whether each detection is as bright as its catalogue counterpart says.
+
+    The zero point of the detected fluxes is set by the bright matches, where
+    the identification is not in doubt. A detection whose catalogue magnitude
+    is then off by more than ``max_dmag`` has been matched to something else,
+    typically a much fainter object that happens to lie inside the radius.
+    """
+    det_flux = np.asarray(det_flux, dtype=np.float64)
+    ok = matched & (det_flux > 0) & np.isfinite(ab)
+    ref = ok & (ab < bright)
+    if ref.sum() < 5:
+        return ok
+    with np.errstate(divide="ignore", invalid="ignore"):
+        m_inst = -2.5 * np.log10(det_flux)
+        zp = np.median(ab[ref] - m_inst[ref])
+        return ok & (np.abs(ab - (zp + m_inst)) < max_dmag)
+
+
 def run_worker(visit: int, sca: int, cfg: ExtractionConfig) -> None:
     """Extract every target on one (visit, SCA) and cache the rows."""
     from grizli import model as gmodel
@@ -128,6 +164,8 @@ def run_worker(visit: int, sca: int, cfg: ExtractionConfig) -> None:
                     else 0.0 for o in object_ids])
     ab = ab_h158(f_h)
     zs = np.array([redshifts.get(int(o), -1.0) for o in object_ids])
+    matched = matched & _magnitude_consistent(flt.det_flux, ab, matched,
+                                              cfg.max_dmag)
     scene_sel = matched & (ab < cfg.ab_scene) & (zs >= 0)
     target_sel = scene_sel & (ab < cfg.ab_target) & (zs < cfg.z_max)
     order = np.argsort(ab)
@@ -264,3 +302,42 @@ def merge(cfg: ExtractionConfig) -> str:
     print("REMINDER: split by object_id, not by row -- the same galaxy appears "
           "in many visits.")
     return cfg.out_dataset
+
+
+def select_line_flux(deep_dataset: str, out_dataset: str,
+                     flux_limit: float = SURVEY_LINE_FLUX_LIMIT) -> str:
+    """Keep the spectra the spectroscopic survey would select.
+
+    The extraction takes every galaxy the image detects. Most of them have no
+    line that a grism exposure could show, and a spectrum without a line gives
+    super-resolution nothing to work with. The survey selects its galaxies by
+    line flux, so the same selection is applied here, with the survey's own
+    number: the true H-alpha or [O III] 5007 flux, measured on the noiseless
+    target and calibrated by the H158 magnitude, has to exceed ``flux_limit``.
+    A line outside the grism band has no flux by this measure.
+
+    Writes ``out_dataset`` with the selected rows and the two line fluxes
+    (``ha_flux``, ``oiii_flux``), and returns its path.
+    """
+    from ..evaluation.metrics import HALPHA_VAC_AA, OIII_VAC_AA, true_line_flux_cgs
+
+    d = np.load(deep_dataset, allow_pickle=True)
+    n = len(d["ids"])
+    wave, hr, ab, z = (d["wavelength_high"], d["flux_high"], d["ab_h158"],
+                       d["redshift"])
+    ha = true_line_flux_cgs(wave, hr, ab, z, HALPHA_VAC_AA)
+    oiii = true_line_flux_cgs(wave, hr, ab, z, OIII_VAC_AA)
+    keep = np.maximum(ha, oiii) > flux_limit
+
+    out = {}
+    for k in d.files:
+        v = d[k]
+        out[k] = v[keep] if (v.ndim >= 1 and v.shape[0] == n) else v
+    out.update(ha_flux=ha[keep], oiii_flux=oiii[keep],
+               line_flux_limit=np.float64(flux_limit))
+    os.makedirs(os.path.dirname(os.path.abspath(out_dataset)), exist_ok=True)
+    np.savez_compressed(out_dataset, **out)
+    print(f"selected {int(keep.sum())} of {n} rows "
+          f"({len(np.unique(out['ids']))} of {len(np.unique(d['ids']))} galaxies) "
+          f"with H-alpha or [O III] above {flux_limit:.1e} -> {out_dataset}")
+    return out_dataset

@@ -806,8 +806,13 @@ def plot_redshift_breakdown(c):
     snr_labels = ('S/N < 2', '2 - 3', '3 - 6', '> 6')
     groups += [(lab, (best >= lo) & (best < hi), COLOR_SR)
                for lab, (lo, hi) in zip(snr_labels, snr_bins, strict=True)]
-    stats = [redshift_summary(zp[m], zt[m]) for _, m, _ in groups]
     xs = np.array([0, 1.4, 2.4, 3.4, 4.8, 5.8, 6.8, 7.8])
+    # A group can be empty: a sample selected on line flux has no spectrum
+    # without a strong line in the band. It is left out, not drawn as a gap.
+    full = [g[1].any() for g in groups]
+    xs = xs[full]
+    groups = [g for g, ok in zip(groups, full, strict=True) if ok]
+    stats = [redshift_summary(zp[m], zt[m]) for _, m, _ in groups]
     cols = [col for _, _, col in groups]
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(12, 4.2))

@@ -30,7 +30,7 @@ test that keeps the reported numbers honest.
 
 from __future__ import annotations
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from .config import SR1Config, SR2Config, ZHeadConfig
 from .grids import MAX_PHOT_BANDS, PHOT_BANDS, ROMAN_MEDIUM_BANDS, WAVE_HR, WAVE_LR

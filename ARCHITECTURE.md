@@ -198,8 +198,8 @@ standardises to 0 — the same vector `RomanPipeline.predict(phot=None)` sends.
 
 `specsr-roman evaluate ablation` uses it to answer which input the redshift
 came from. Removing all three colours takes the published head from NMAD
-0.0043 with 5.0 % of outliers to **0.0053 with 16.6 %**, so the colours carry most
-of the alias-breaking. Read that as an upper bound rather than an information
+0.0014 with 0.8 % of outliers to **0.0013 with 2.9 %**, so the colours remove
+outliers and leave the precision alone. Read that as an upper bound rather than an information
 floor: the head was *trained* with colours, and a grism-only head is a
 separate experiment that has not been run.
 
@@ -273,7 +273,7 @@ improve).
 The goal used is `-recov_amp + lam_hallu * hallu_amp`: integrated
 predicted-over-true flux on *recoverable* strong lines against the same
 quantity on *undetectable* ones. It selects the sharpest epoch that is not yet
-hallucinating — epoch 3 on the published run. That is the design working:
+hallucinating — epoch 2 on the published run. That is the design working:
 hallucination amplitude climbs from 0.26 to 0.62 by epoch 150 while
 recoverable amplitude barely moves.
 

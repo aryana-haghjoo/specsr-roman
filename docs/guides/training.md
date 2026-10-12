@@ -73,8 +73,8 @@ SR2 that draws nothing; a line-region MSE ratio is diluted across 98 windows
 and picks the timidest epoch available.
 
 :::{note}
-**SR2's best epoch is 3.** That is the design working, not a truncated run:
-hallucination amplitude climbs from 0.50 to 0.74 by epoch 150 while
+**SR2's best epoch is 2.** That is the design working, not a truncated run:
+hallucination amplitude climbs from 0.47 to 0.60 by epoch 150 while
 recoverable amplitude barely moves. The goal deliberately selects the sharpest
 epoch before hallucination runs away.
 :::

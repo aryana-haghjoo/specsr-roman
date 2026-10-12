@@ -56,10 +56,10 @@ with suspicion — that is what the PDF is telling you.
 out = pipe.predict(flux_low, flux_low_err, phot=None)
 ```
 
-This works, and it is much weaker. On the held-out split it gives NMAD 0.0053
-with 17 % catastrophic outliers, against 0.0043 and 5.0 % with Roman
-Medium-tier imaging: a single in-band line is alias-degenerate, and the
-colours are what break most of that.
+This works, and it fails more often. On the held-out split it gives NMAD
+0.0013 with 2.9 % of outliers, against 0.0014 and 0.8 % with Roman
+Medium-tier imaging: where the line is too faint to settle its own identity,
+the colours are what choose between the candidates.
 
 Be precise about what the number measures, though. The published head was
 *trained* with photometry, so `phot=None` hands it its training-mean colours

@@ -98,7 +98,9 @@ def _with_scales(c, data: str = "data/dataset/ou2024_h10307_dataset.npz"):
     They depend only on the dataset and the split, so no model is run.
     """
     if "ab_h158" in c.files:
-        return c
+        # Read every array once. An NpzFile decompresses a whole array on each
+        # access, so indexing it row by row inside a loop takes hours.
+        return {k: c[k] for k in c.files}
     from ..data import RomanFixedGridDataset, get_or_make_group_split, normalize
     ds = RomanFixedGridDataset(data, verbose=False)
     _, test_idx, _ = get_or_make_group_split(os.path.abspath(data), ds.ids,

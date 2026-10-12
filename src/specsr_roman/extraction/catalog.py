@@ -57,9 +57,10 @@ def detect_and_relabel(flt, truth, match_radius: float = 3.0,
     """Detect sources and relabel the segmentation with compact ids.
 
     Returns ``(compact_ids, object_ids, mags, matched)``, all indexed by
-    detection.
+    detection. The summed flux of each detection is left on ``flt.det_flux``,
+    for the magnitude check the caller makes against the catalogue.
 
-    Two things are load-bearing here.
+    Three things are load-bearing here.
 
     *Compact ids.* grizli keeps the segmentation map as float32, which cannot
     represent OU2024's 13-digit ``object_id`` exactly --- ids silently collide
@@ -67,6 +68,13 @@ def detect_and_relabel(flt, truth, match_radius: float = 3.0,
     (detection index + 2) and ``object_ids`` maps back. ``-1`` marks a
     detection with no truth counterpart; those still shape the contamination
     scene, they just cannot be targets.
+
+    *The brightest counterpart, not the nearest.* The truth index lists every
+    simulated object, down to magnitudes far below what the image detects, so
+    a detected galaxy often has a much fainter one within the match radius.
+    Taking the nearest then hands the detection the wrong identity, and with
+    it the wrong SED and redshift. The detection is of the brightest object
+    there, so that is the one taken.
 
     *Detection runs on padded arrays.* grizli pads the frame so edge sources'
     beams stay in-array, so truth coordinates must be shifted by the pad
@@ -85,8 +93,14 @@ def detect_and_relabel(flt, truth, match_radius: float = 3.0,
 
     pady, padx = flt.pad
     tree = cKDTree(np.c_[x_t + padx, y_t + pady])
-    dist, idx = tree.query(np.c_[scat.xcentroid, scat.ycentroid], k=1)
+    xy = np.c_[scat.xcentroid, scat.ycentroid]
+    dist, idx = tree.query(xy, k=1)
     matched = dist < match_radius
+    for j, near in enumerate(tree.query_ball_point(xy, r=match_radius)):
+        if len(near) > 1:
+            idx[j] = min(near, key=lambda t: mag_t[t])
+            dist[j] = float(np.hypot(*(tree.data[idx[j]] - xy[j])))
+    flt.det_flux = np.asarray(scat.segment_flux, dtype=np.float64)
 
     relabel = np.zeros(segm.max_label + 1, dtype=np.int64)
     compact_ids = np.arange(len(scat), dtype=np.int64) + 2

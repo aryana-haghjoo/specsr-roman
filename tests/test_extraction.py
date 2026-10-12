@@ -379,3 +379,46 @@ def test_sed_library_raises_keyerror_for_a_missing_galaxy(tmp_path):
     with pytest.raises(KeyError):
         lib.observed(99999999999999, 1.0)
     lib.close()
+
+
+def test_magnitude_check_drops_a_detection_matched_to_a_fainter_object():
+    """A detection whose only counterpart is far fainter is a wrong identity.
+
+    The truth index goes several magnitudes below the detection limit, so such
+    matches exist on every image. The zero point comes from the bright matches.
+    """
+    from specsr_roman.extraction.batch import _magnitude_consistent
+    ab = np.array([18.0, 19.0, 20.0, 20.5, 20.8, 23.0, 24.0, 29.0])
+    flux = 10.0 ** (-0.4 * (ab - 25.0))
+    flux[-1] = 10.0 ** (-0.4 * (24.5 - 25.0))      # detected at 24.5, catalogued at 29
+    matched = np.ones(len(ab), dtype=bool)
+    ok = _magnitude_consistent(flux, ab, matched, max_dmag=1.0)
+    assert ok[:-1].all() and not ok[-1]
+
+
+def test_select_line_flux_keeps_the_rows_above_the_survey_limit(tmp_path):
+    """The training sample is the survey's: H-alpha or [O III] above its limit."""
+    from specsr_roman.extraction.batch import select_line_flux
+    from specsr_roman.grids import WAVE_HR
+    rng = np.random.default_rng(0)
+    n, z = 6, 1.2
+    hr = np.ones((n, WAVE_HR.size))
+    line = np.exp(-0.5 * ((WAVE_HR / (1 + z) - 6564.61) / 3.0) ** 2)
+    amp = np.array([0.0, 0.5, 5.0, 50.0, 500.0, 5000.0])
+    hr = hr + amp[:, None] * line
+    path = tmp_path / "deep.npz"
+    np.savez(path, ids=np.arange(n), redshift=np.full(n, z),
+             flux_low=rng.normal(size=(n, 864)).astype(np.float32),
+             flux_low_err=np.ones((n, 864), dtype=np.float32),
+             flux_high=hr.astype(np.float32), phot=np.ones((n, 14)),
+             ab_h158=np.full(n, 21.0), snr=np.ones(n),
+             visit=np.zeros(n, dtype=np.int32), sca=np.zeros(n, dtype=np.int16),
+             wavelength_low=np.arange(864.0), wavelength_high=WAVE_HR,
+             phot_bands=np.array(["b"] * 14))
+    out = select_line_flux(str(path), str(tmp_path / "sel.npz"))
+    d = np.load(out, allow_pickle=True)
+    # a flat spectrum has no line and never passes; the strongest always does
+    assert 0 not in d["ids"] and (n - 1) in d["ids"]
+    assert (np.maximum(d["ha_flux"], d["oiii_flux"]) > 1e-16).all()
+    assert len(d["ids"]) < n
+    assert d["wavelength_high"].shape == WAVE_HR.shape     # grids pass through

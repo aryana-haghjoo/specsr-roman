@@ -277,9 +277,17 @@ def plot_example(cache: str = EXAMPLE_CACHE, which: int = EXAMPLE_ID,
 # The parent-sample figure
 # ---------------------------------------------------------------------------
 def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
+                       deep_dataset: str = "data/dataset/ou2024_h10307_deep_dataset.npz",
                        data_dir: str = "data/ou2024", healpix: int = 10307,
-                       ab_target: float = 22.5, n_parent: int = 60000,
+                       n_parent: int = 60000,
                        name: str = "ou2024_parent.png", seed: int = 0):
+    """The sample in three steps: the catalogue, what the image detects, what is kept.
+
+    Nothing is cut on magnitude. The faint limit of the middle population is
+    the detection in the H158 image, and the step from it to the sample is the
+    survey's line-flux limit
+    (:func:`specsr_roman.extraction.batch.select_line_flux`).
+    """
     import pyarrow.parquet as pq
 
     gal = pq.read_table(f"{data_dir}/galaxy_{healpix}.parquet",
@@ -294,22 +302,21 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
     m_p = AB_ANCHOR_H158 - 2.5 * np.log10(
         np.clip(np.asarray(flx["roman_flux_H158"]), 1e-12, None))
     sm_p = np.log10(np.clip(np.asarray(gal["um_source_galaxy_obs_sm"]), 1.0, None))
+    lut = {int(g): j for j, g in enumerate(gid)}
 
-    d = np.load(dataset, allow_pickle=True)
-    ids = np.unique(d["ids"])
-    row = np.searchsorted(gid, ids) if np.all(np.diff(gid) > 0) else None
-    if row is None:
-        lut = {int(g): j for j, g in enumerate(gid)}
-        row = np.array([lut[int(i)] for i in ids])
-    z_s, m_s, sm_s = z_p[row], m_p[row], sm_p[row]
+    def rows_of(path):
+        ids = np.unique(np.load(path, allow_pickle=True)["ids"])
+        return np.array([lut[int(i)] for i in ids])
+
+    r_s, r_d = rows_of(dataset), rows_of(deep_dataset)
+    z_s, m_s, sm_s = z_p[r_s], m_p[r_s], sm_p[r_s]
+    z_d, m_d, sm_d = z_p[r_d], m_p[r_d], sm_p[r_d]
 
     rng = np.random.default_rng(seed)
     sub = rng.choice(len(gid), size=min(n_parent, len(gid)), replace=False)
-    bright = m_p < ab_target
-    sub_b = rng.choice(np.where(bright)[0],
-                       size=min(n_parent, int(bright.sum())), replace=False)
 
-    col_all, col_cut = "0.72", "0.25"
+    # a colour of its own for the catalogue: light grey vanished on the page
+    col_all, col_det = "#2a9d8f", COLOR_HR
     fig = plt.figure(figsize=(13, 5.4))
     outer = GridSpec(1, 2, figure=fig, wspace=0.22)
 
@@ -319,39 +326,38 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
     ax = fig.add_subplot(ga[1, 0])
     at = fig.add_subplot(ga[0, 0], sharex=ax)
     ar = fig.add_subplot(ga[1, 1], sharey=ax)
-    ax.scatter(z_p[sub], m_p[sub], s=1.5, color=col_all, lw=0, rasterized=True)
+    ax.scatter(z_p[sub], m_p[sub], s=2.5, color=col_all, lw=0, alpha=0.55,
+               rasterized=True)
+    ax.scatter(z_d, m_d, s=1.2, color=col_det, lw=0, alpha=0.25, rasterized=True)
     ax.scatter(z_s, m_s, s=2.5, color=COLOR_SR, lw=0, alpha=0.6, rasterized=True)
-    ax.axhline(ab_target, color="k", lw=0.9, ls="--")
     ax.set_xlim(0, 3.1)
     ax.set_ylim(28.5, 15.5)
     ax.set_xlabel(r"Redshift $z$")
     ax.set_ylabel(r"$m_{\rm H158}$ (AB)")
     zb, mb = np.linspace(0, 3.1, 48), np.linspace(15.5, 28.5, 53)
     step = dict(histtype="step", density=True, lw=1.3)
-    at.hist(z_p, bins=zb, color=col_all, **step)
-    at.hist(z_p[bright], bins=zb, color=col_cut, **step)
-    at.hist(z_s, bins=zb, color=COLOR_SR, **step)
-    ar.hist(m_p, bins=mb, color=col_all, orientation="horizontal", **step)
-    ar.hist(m_s, bins=mb, color=COLOR_SR, orientation="horizontal", **step)
+    for zz, mm, col in ((z_p, m_p, col_all), (z_d, m_d, col_det),
+                        (z_s, m_s, COLOR_SR)):
+        at.hist(zz, bins=zb, color=col, **step)
+        ar.hist(mm, bins=mb, color=col, orientation="horizontal", **step)
     for h in (at, ar):
         h.axis("off")
     at.set_title("(a) redshift and apparent magnitude", fontsize=12)
     handles = [
         plt.Line2D([], [], color=col_all, lw=2,
                    label=f"OpenUniverse2024 galaxies ({len(gid):,})"),
-        plt.Line2D([], [], color=col_cut, lw=2,
-                   label=rf"of which $m_{{\rm H158}}<{ab_target}$ "
-                         f"({int(bright.sum()):,})"),
+        plt.Line2D([], [], color=col_det, lw=2,
+                   label=f"detected in our images ({len(r_d):,})"),
         plt.Line2D([], [], color=COLOR_SR, lw=2,
-                   label=f"dataset used here ({len(ids):,})"),
+                   label=f"above the line-flux limit ({len(r_s):,})"),
     ]
+    # upper right: the corner no population reaches
     ax.legend(handles=handles, frameon=True, framealpha=0.9, edgecolor="none",
-              fontsize=9, loc="lower right")
+              fontsize=9, loc="upper right")
 
     # -- (b) stellar mass against redshift --
     bx = fig.add_subplot(outer[1])
-    bx.scatter(z_p[sub_b], sm_p[sub_b], s=1.5, color=col_cut, lw=0, alpha=0.35,
-               rasterized=True)
+    bx.scatter(z_d, sm_d, s=1.2, color=col_det, lw=0, alpha=0.2, rasterized=True)
     bx.scatter(z_s, sm_s, s=2.5, color=COLOR_SR, lw=0, alpha=0.6, rasterized=True)
     bx.set_xlim(0, 3.1)
     bx.set_ylim(7.5, 12.2)
@@ -359,16 +365,27 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
     bx.set_ylabel(r"$\log_{10}(M_\star/M_\odot)$")
     bx.set_title("(b) stellar mass", fontsize=12)
     path = _save(fig, name)
+
+    def pct(v):
+        return [float(x) for x in np.percentile(v, [5, 95])]
+
     stats = {
-        "n_parent": int(len(gid)), "n_parent_bright": int(bright.sum()),
-        "n_sample": int(len(ids)),
+        "n_parent": int(len(gid)), "n_detected": int(len(r_d)),
+        "n_sample": int(len(r_s)),
         "z_median_sample": float(np.median(z_s)),
-        "z_median_bright": float(np.median(z_p[bright])),
+        "z_median_detected": float(np.median(z_d)),
+        "z_p05_p95_sample": pct(z_s),
         "mag_median_sample": float(np.median(m_s)),
-        "mag_p05_p95_sample": [float(v) for v in np.percentile(m_s, [5, 95])],
+        "mag_median_detected": float(np.median(m_d)),
+        "mag_p05_p95_sample": pct(m_s),
+        "mag_p99_detected": float(np.percentile(m_d, 99)),
+        "mag_max_sample": float(m_s.max()),
         "logm_median_sample": float(np.median(sm_s)),
-        "logm_p05_p95_sample": [float(v) for v in np.percentile(sm_s, [5, 95])],
-        "logm_median_bright": float(np.median(sm_p[bright])),
+        "logm_median_detected": float(np.median(sm_d)),
+        "logm_p05_p95_sample": pct(sm_s),
+        # how the selection depends on brightness
+        "frac_selected_brighter_22p5": float(np.isin(r_d[m_d < 22.5], r_s).mean()),
+        "frac_selected_fainter_23p5": float(np.isin(r_d[m_d > 23.5], r_s).mean()),
     }
     # read by paper/make_paper_numbers.py for the macros of the data section
     import json

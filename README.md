@@ -92,20 +92,26 @@ specsr-roman evaluate figures --outdir figures/
 
 Canonical chain `sr1_ou2024_v6 → zhead_ou2024_roman_med3_noisy →
 sr2_ou2024_v5_romanonly`, evaluated on the held-out object-id split of the
-OU2024 dataset (N = 7,334 spectra, 3,098 galaxies), with 0.05 mag photometric
+OU2024 dataset (N = 4,711 spectra, 1,997 galaxies), with 0.05 mag photometric
 noise applied at evaluation.
+
+**The sample is the survey's.** Every galaxy detected in the H158 images is
+extracted, with no cut on magnitude, and a galaxy is kept if the true flux of
+its Hα or [O III] λ5007 line exceeds 10⁻¹⁶ erg s⁻¹ cm⁻², the line-flux limit of
+the Roman spectroscopic survey (Wang et al. 2022). That is 23,845 spectra of
+10,039 galaxies out of 68,806 detected, at 0.55 < z < 2.6.
 
 **Redshift** — every held-out spectrum, no cut on signal-to-noise
 
 | Configuration | NMAD | catastrophic |
 |---|---|---|
-| Grism + Roman Medium (F106/F129/F158), noisy — **deployable** | **0.0043** | **5.0 %** |
-| The same chain called with `phot=None` | 0.0053 | 17 % |
+| Grism + Roman Medium (F106/F129/F158), noisy — **deployable** | **0.0014** | **0.8 %** |
+| The same chain called with `phot=None` | 0.0013 | 2.9 % |
 
 The deployable row uses only the imaging that actually ships with the HLWAS
-grism, with realistic noise at train *and* eval. Three broadband colours break
-most of the alias degeneracy, which is the whole reason the head takes
-photometry at all.
+grism, with realistic noise at train *and* eval. The colours do not sharpen the
+redshift; they remove outliers, by choosing between line identifications where
+the line is too faint to settle it.
 
 The second row is what this chain does when you call it with `phot=None`, and
 it is **not** the grism-only information floor. The head was trained with
@@ -121,28 +127,28 @@ noise. Every configuration it reports uses those three bands and no others.
 **Line amplitude recovery** — median recovered flux fraction of the detected
 lines, split by how well the best line is detected. The lines are judged only
 where they are detected, at an integrated S/N of at least 2 in the
-single-exposure grism data: 3,283 of the 7,334 spectra have such a line. Below
+single-exposure grism data: 3,579 of the 4,711 spectra have such a line. Below
 that the data carry no strong signal, and nothing is concluded about what the
 model draws there.
 
 | Recoverability (integrated line S/N) | n | SR1 | SR2 |
 |---|---|---|---|
-| marginal (2–3) | 1,100 | 0.63 | 0.87 |
-| good (3–6) | 1,313 | 0.81 | 0.92 |
-| strong (> 6) | 652 | 0.80 | 0.89 |
+| marginal (2–3) | 1,497 | 0.52 | 0.87 |
+| good (3–6) | 1,409 | 0.70 | 0.95 |
+| strong (> 6) | 673 | 0.77 | 0.96 |
 
-Wherever a line is detected the full pipeline recovers about 0.9 of its flux,
-and SR2 adds to SR1 in every bin, most in the marginal one. In 92 % of the
-spectra with a detected line exactly one line is detected, and it is Hα (with
-[N II]) in 93 %.
+Wherever a line is detected the full pipeline recovers most of its flux, and
+SR2 adds to SR1 in every bin, most in the marginal one. In 93 % of the spectra
+with a detected line exactly one line is detected, and it is Hα (with [N II])
+in essentially all of them.
 
 **Prior-dominance audit** (`specsr-roman evaluate prior`): response exponent
-r = 0.16 for the full pipeline and 0.25 for SR1 alone, on the 3,242 held-out
+r = 0.17 for the full pipeline and 0.22 for SR1 alone, on the 3,552 held-out
 spectra with a detected line — 1 means the model reads line strengths from
 the data, 0 means it recites the training manifold. For strongly detected
-lines both reach 0.33. The model finds and sharpens the lines the data
-contain, but their strengths still lean on the simulation, so line fluxes and
-ratios from the output are not yet measurements. See
+lines the full pipeline reaches 0.24. The model finds and sharpens the lines
+the data contain, but their strengths still lean on the simulation, so line
+fluxes and ratios from the output are not yet measurements. See
 [Limitations](#limitations).
 
 **SR2 by redshift configuration.** SR2 places its lines at the redshifts it is
@@ -153,15 +159,16 @@ target, for lines detected in the grism.
 
 | Redshift head | NMAD | recovery, marginal / good / strong | Hα flux / truth | [O III] flux / truth | response r |
 |---|---|---|---|---|---|
-| Roman Y106, J129, H158 | 0.0043 | 0.87 / 0.92 / 0.89 | 1.00 | 0.89 | 0.16 |
-| + Rubin *ugrizy*, 1 yr | 0.0030 | 0.89 / 0.93 / 0.87 | 1.00 | 0.85 | 0.15 |
-| + Rubin *ugrizy*, 10 yr | 0.0029 | 0.85 / 0.92 / 0.88 | 0.99 | 0.83 | 0.16 |
-| 9 bands, no spectrum (control) | 0.0131 | 0.80 / 0.90 / 0.87 | 0.96 | 0.84 | 0.18 |
+| Roman Y106, J129, H158 | 0.0014 | 0.87 / 0.95 / 0.96 | 1.01 | 0.81 | 0.17 |
+| + Rubin *ugrizy*, 1 yr | 0.0011 | 0.82 / 0.94 / 0.98 | 1.01 | 0.85 | 0.18 |
+| + Rubin *ugrizy*, 10 yr | 0.0011 | 0.76 / 0.90 / 0.92 | 0.97 | 0.88 | 0.18 |
+| 9 bands, no spectrum (control) | 0.0116 | 0.82 / 0.93 / 0.94 | 0.99 | 0.85 | 0.17 |
 
-The redshift head barely changes SR2: it acts where a line is detected, and
-there the three-band redshift is already right. For comparison, the same fit on
-the grism input gives an Hα ratio of 1.05 with 10 % of lines off by more than a
-factor of two (6–7 % after SR2), and an [O III] ratio of 0.91 with 25 % (5 %).
+The redshift head changes SR2 little, and not in step with the quality of the
+redshift: the spread in the marginal bin comes from SR2's early-epoch
+checkpoint, not from the head. For comparison, the same fit on the grism input
+gives an Hα ratio of 1.05 with 11 % of lines off by more than a factor of two
+(6–9 % after SR2), and an [O III] ratio of 0.90 with 25 % (3–13 %).
 
 ---
 
@@ -169,7 +176,7 @@ factor of two (6–7 % after SR2), and an [O III] ratio of 0.91 with 25 % (5 %).
 
 Three stages, each doing one job it can be held to.
 
-![The specsr-roman pipeline in three bands: simulating the training data (OpenUniverse2024 SEDs dispersed through the Wang+2022 grism model, extracted with grizli into 36,404 LR-HR pairs); spectral super-resolution (SR1, a conservative 1D residual CNN emitting mean and log-variance, refined by SR2, an attention network with one token per emission line); and the redshift branch (a ZHead taking the coarse spectrum plus three Roman bands and emitting P(z), whose top modes gate which lines SR2 may draw).](docs/_static/arch_pipeline_roman.png)
+![The specsr-roman pipeline in three bands: simulating the training data (OpenUniverse2024 SEDs dispersed through the Wang+2022 grism model, extracted with grizli into 23,845 LR-HR pairs); spectral super-resolution (SR1, a conservative 1D residual CNN emitting mean and log-variance, refined by SR2, an attention network with one token per emission line); and the redshift branch (a ZHead taking the coarse spectrum plus three Roman bands and emitting P(z), whose top modes gate which lines SR2 may draw).](docs/_static/arch_pipeline_roman.png)
 
 **SR1** is deliberately conservative. It sees `[flux, err]` scaled by a shared
 factor, so the channel ratio *is* the per-pixel S/N and the network can
@@ -235,9 +242,9 @@ more than a hedged flat one. SR2's plain NLL is continuum-dominated and
 reliably selects the model that draws nothing.
 
 So SR1 monitors line-flux recovery plus the hallucination penalty, and SR2
-monitors `-recov_amp + lam_hallu * hallu_amp`. **SR2's best epoch is 3.** That
+monitors `-recov_amp + lam_hallu * hallu_amp`. **SR2's best epoch is 2.** That
 is the design working, not a truncated run: hallucination amplitude climbs from
-0.26 to 0.62 by epoch 150 while recoverable amplitude barely moves.
+0.47 to 0.60 by epoch 150 while recoverable amplitude barely moves.
 
 ---
 
@@ -252,8 +259,17 @@ instrument model.
 
 ```bash
 specsr-roman extract run --max-scas 60 --workers 4    # resumable; safe to kill
-specsr-roman extract merge                            # → one training npz
+specsr-roman extract merge                            # → every detected galaxy
+specsr-roman extract select                           # → the training npz
 ```
+
+`extract run` takes every galaxy the H158 image detects, with no magnitude
+cut. A detection takes the identity of the brightest catalogue galaxy at its
+position and keeps it only if the catalogue magnitude agrees with the detected
+flux: the truth index lists objects far below the detection limit, and the
+nearest one is often not the one detected. `extract select` then keeps the
+spectra whose true Hα or [O III] flux exceeds the survey's line-flux limit
+(`--line-flux`, default 10⁻¹⁶ erg s⁻¹ cm⁻²).
 
 Or skip it: the built dataset is on the
 [Hub](https://huggingface.co/datasets/aryana-haghjoo/romansr-data), together
@@ -278,7 +294,7 @@ Stated plainly, because they bound what the numbers mean.
 - **Results are on the Diffsky manifold.** Targets are simulated SEDs with
   simulation line physics. A model can score well by learning that manifold
   rather than by measuring anything, and no reconstruction metric distinguishes
-  the two. The prior-dominance audit puts the published chain at r ≈ 0.16: a line
+  the two. The prior-dominance audit puts the published chain at r ≈ 0.17: a line
   doubled in the input grows by about 12 % in the output.
 - **Anti-prior augmentation is implemented but not used.** It raises r to ~0.51
   at fixed detectability while suppressing absolute line recovery, so the
@@ -287,12 +303,16 @@ Stated plainly, because they bound what the numbers mean.
 - **Trained on simulations, not sky.** Real Roman spectra will differ. Domain
   adaptation via cross-instrument overlaps (DESI/PFS/JWST) is the intended
   route once real data exists.
-- **The lines are not judged below S/N 2.** More than half of the held-out
-  spectra (55 %) have no detected line. The redshift numbers include them; the line-recovery
-  numbers do not, and say nothing about what the model draws there.
-- **The 5 % catastrophic rate is physics, not a bug to be tuned away.** With
-  a single line in band the identification is genuinely ambiguous; photometry
-  breaks most of it and cannot break all of it.
+- **The lines are not judged below S/N 2.** A quarter of the held-out spectra
+  (24 %) have no detected line in a single exposure. The redshift numbers
+  include them; the line-recovery numbers do not, and say nothing about what
+  the model draws there.
+- **The sample is selected on the true line flux.** A survey has to estimate
+  that flux from the data. In this simulation it also follows continuum
+  brightness closely, so the sample lacks faint galaxies with strong lines.
+- **The remaining outliers are physics, not a bug to be tuned away.** Where
+  the line is too faint to see, the identification rests on three colours;
+  they settle most cases and cannot settle all.
 
 ---
 

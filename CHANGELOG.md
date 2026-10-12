@@ -5,14 +5,54 @@ versioning](https://semver.org/); until 1.0 the public API may still move.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-12
+
+**The sample changed, and every number with it.** The training set is no
+longer cut at an H158 magnitude of 22.5. Every galaxy detected in the images
+is extracted, and the sample is the galaxies whose H-alpha or [O III] 5007
+flux exceeds 1e-16 erg/s/cm2, the line-flux limit of the Roman spectroscopic
+survey (Wang et al. 2022). All nine checkpoints are retrained under the same
+names; the previous ones are on the Hub under `superseded/h158_lt_22p5/`.
+Numbers from 0.4.0 and earlier describe a different sample and are not
+comparable: the galaxies without a strong line in the band, where most
+redshift outliers were, are no longer in it.
+
 ### Added
 
+- **`specsr-roman extract select`** and `extraction.select_line_flux`: the
+  training dataset is selected from the deep extraction by true line flux
+  (`SURVEY_LINE_FLUX_LIMIT`). `extract run` / `merge` now build the deep
+  dataset, every detected galaxy, with no magnitude cut (`ab_target` and
+  `ab_scene` default to no cut). Both files are on the Hub.
 - `evaluation.band_figures.nii_halpha_ratio`: [N II] 6583 / H-alpha in the
   target and in the output, where H-alpha is detected. In OpenUniverse2024
   the true ratio is nearly constant (median 0.08, 5th-95th percentiles
   0.072-0.084), so the dataset cannot test the recovery of an individual
-  galaxy's ratio; the output reproduces the value on average with a scatter
-  of 0.26 dex.
+  galaxy's ratio.
+- The parent-sample figure shows the catalogue, the galaxies the images
+  detect, and the ones above the line-flux limit.
+
+### Fixed
+
+- **Detections are identified by the brightest counterpart.** The truth index
+  lists objects far below the detection limit, and the nearest one to a
+  detection is often not the object detected. The match now takes the
+  brightest object in the radius and keeps it only if its catalogue magnitude
+  agrees with the detected flux within a magnitude. In the previous dataset
+  0.6% of the spectra carried the identity of a fainter neighbour.
+- `band_figures` reads each cache array once. Indexing an `NpzFile` row by
+  row made the S/N figure take hours.
+- The redshift-breakdown figure leaves out a group with no spectra.
+
+### Results on the new sample
+
+Held-out split, 4,711 spectra, 76% with a line at S/N >= 2 in one exposure.
+Redshift with the three Roman bands: NMAD 0.0014 with 0.8% outliers; with
+Rubin 0.0011; nine bands and no spectrum 0.0116. Line recovery in the
+marginal, good and strong bins: 0.87, 0.95, 0.96. Response exponent of the
+full pipeline: 0.17. On the previous model's test spectra that pass the new
+selection the redshift NMAD was 0.0021 with 0.5% outliers, so the fall in the
+outlier rate from 5% is the sample, and the gain in precision is the model.
 
 ### Changed
 
