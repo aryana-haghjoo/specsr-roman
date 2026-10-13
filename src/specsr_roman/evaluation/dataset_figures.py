@@ -33,7 +33,7 @@ from ..grids import (
 )
 from .figures import COLOR_HR, COLOR_LR, COLOR_SR, MAIN_LABELS, FigureStyle, _save
 
-__all__ = ["build_example_cache", "plot_example", "plot_parent_sample",
+__all__ = ["build_example_cache", "build_cutout_cache", "plot_example", "plot_parent_sample",
            "make_dataset_figures", "EXAMPLE_CACHE", "PARENT_STATS"]
 
 EXAMPLE_CACHE = "outputs/ou2024_example_cache.npz"
@@ -49,8 +49,12 @@ def _band_mean(wave, flam, lo, hi):
 
 def build_example_cache(visit: int = 16188, sca: int = 10, cfg=None,
                         out: str = EXAMPLE_CACHE, n_keep: int = 8,
-                        z_range: tuple[float, float] = (1.05, 1.85)) -> str:
+                        z_range: tuple[float, float] = (1.05, 1.85),
+                        ids=None) -> str:
     """Re-disperse one detector image and store cutouts of a few targets.
+
+    With ``ids`` (object ids), exactly those targets are stored, whatever
+    their redshift, and ``z_range`` and ``n_keep`` are ignored.
 
     The candidates are the targets of this image with H-alpha and [O III] both
     inside the grism band (``z_range``), ranked by the S/N of the extracted
@@ -98,8 +102,13 @@ def build_example_cache(visit: int = 16188, sca: int = 10, cfg=None,
     seg = np.asarray(flt.seg)
     ny, nx = scene.shape
 
+    if ids is None:
+        rows = np.where(target_sel & (zs > z_range[0]) & (zs < z_range[1]))[0]
+    else:
+        rows = np.where(np.isin(np.asarray(object_ids), list(ids)))[0]
+        n_keep = len(rows)
     cand = []
-    for i in np.where(target_sel & (zs > z_range[0]) & (zs < z_range[1]))[0]:
+    for i in rows:
         if i not in kept:
             continue
         spec, (sed_wave, sed_flux) = kept[i]
@@ -157,6 +166,37 @@ def build_example_cache(visit: int = 16188, sca: int = 10, cfg=None,
     store["n"] = min(n_keep, len(cand))
     seds.close()
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    np.savez_compressed(out, **store)
+    print(f"wrote {out}")
+    return out
+
+
+def build_cutout_cache(targets: dict, out: str) -> str:
+    """Cutouts of chosen galaxies, keyed by object id.
+
+    ``targets`` maps an object id to the ``(visit, sca)`` of the detector
+    image its dataset spectrum was extracted from. Each image is dispersed
+    once, and the arrays of :func:`build_example_cache` are stored under
+    ``"<object id>_<name>"``.
+    """
+    frames: dict = {}
+    for oid, frame in targets.items():
+        frames.setdefault(tuple(int(v) for v in frame), []).append(int(oid))
+    store, part = {}, out + ".part.npz"
+    for (visit, sca), ids in frames.items():
+        print(f"dispersing visit {visit} SCA {sca} for {ids}")
+        c = np.load(build_example_cache(visit, sca, out=part, ids=ids),
+                    allow_pickle=True)
+        store.update(wave_lr=c["wave_lr"], wave_hr=c["wave_hr"],
+                     phot_bands=c["phot_bands"])
+        for n in range(int(c["n"])):
+            oid, pre = int(c[f"c{n}_id"]), f"c{n}_"
+            store.update({f"{oid}_{k[len(pre):]}": c[k] for k in c.files
+                          if k.startswith(pre)})
+    os.remove(part)
+    missing = [o for o in targets if f"{int(o)}_lr" not in store]
+    if missing:
+        raise RuntimeError(f"no extraction for {missing}")
     np.savez_compressed(out, **store)
     print(f"wrote {out}")
     return out

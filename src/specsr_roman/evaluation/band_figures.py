@@ -26,8 +26,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from ..grids import PHOTPLAM_F158
+from ..grids import (
+                     AB_ZEROPOINT,
+                     BAND_PIVOT,
+                     PHOTPLAM_F158,
+                     ROMAN_MEDIUM_BANDS,
+                     RUBIN_BANDS,
+                     phot_flux_sigma,
+)
 from . import figures as F
+from .dataset_figures import _stretch, build_cutout_cache
 from .linefit import ROMAN_FIT, measure_line_fluxes
 from .metrics import MIN_BEST_LINE_SNR, RECOVERABILITY_BINS, detected_line_mask
 
@@ -132,21 +140,17 @@ def plot_recovery_bands(caches):
     for ax, (_, c) in zip(axes[0], caches.items(), strict=True):
         best = c["line_snr"].max(axis=1)
         det = detected_line_mask(c["wl_um"], c["z_true"], c["line_snr"])
-        counts = []
-        for pred, lab, col, mk, off in ((c["sr1"], "SR1", F.COLOR_LR, "o", -0.09),
-                                        (c["sr2"], "SR2 (full pipeline)",
-                                         F.COLOR_SR, "s", +0.09)):
-            med, lo, hi, counts = [], [], [], []
-            for blo, bhi in RECOVERABILITY_BINS.values():
-                r = F._recovery_ratios(pred, c["hr"],
-                                       np.where((best >= blo) & (best < bhi))[0], det)
-                q = np.percentile(r, [16, 50, 84]) if r.size else [np.nan] * 3
-                med.append(q[1])
-                lo.append(q[1] - q[0])
-                hi.append(q[2] - q[1])
-                counts.append(r.size)
-            ax.errorbar(xs + off, med, yerr=[lo, hi], fmt=mk + "-", color=col,
-                        lw=1.6, ms=7, capsize=3.5, label=lab, zorder=3)
+        med, lo, hi, counts = [], [], [], []
+        for blo, bhi in RECOVERABILITY_BINS.values():
+            r = F._recovery_ratios(c["sr2"], c["hr"],
+                                   np.where((best >= blo) & (best < bhi))[0], det)
+            q = np.percentile(r, [16, 50, 84]) if r.size else [np.nan] * 3
+            med.append(q[1])
+            lo.append(q[1] - q[0])
+            hi.append(q[2] - q[1])
+            counts.append(r.size)
+        ax.errorbar(xs, med, yerr=[lo, hi], fmt="s-", color=F.COLOR_SR,
+                    lw=1.6, ms=7, capsize=3.5, zorder=3)
         ax.axhline(1.0, color="0.35", ls="--", lw=1.0, zorder=1)
         ax.set_xticks(xs)
         ax.set_xticklabels([f"{F._BIN_LABELS[k]}\n$n$ = {n:,}" for k, n in
@@ -156,7 +160,6 @@ def plot_recovery_bands(caches):
         ax.set_ylim(0, 1.3)
     _titled(axes[0], caches)
     axes[0, 0].set_ylabel("Recovered / true line flux")
-    axes[0, 0].legend(frameon=False, fontsize=9.5, loc="lower right")
     fig.supxlabel("Line recoverability", fontsize=13)
     fig.tight_layout()
     return F._save(fig, "line_recovery_bands.png")
@@ -214,8 +217,9 @@ def plot_river_bands(caches):
 
     The input row is the same spectra in every column (the grism spectrum does
     not depend on the redshift configuration); it is drawn in each so that
-    every output map sits under the map it started from. The two rows have
-    their own colour scales: on a shared one the output row would be blank.
+    every output map sits under the map it started from. Both rows share one
+    colour scale, set by the input row: the figure compares the two, and on
+    separate scales the output's line tracks look stronger than the input's.
     """
     n_b = len(caches)
     fig = plt.figure(figsize=(4.0 * n_b + 1.2, 11.5))
@@ -227,9 +231,7 @@ def plot_river_bands(caches):
         res[b] = (order, (c["sr2"] - c["hr"])[order], (c["lr"] - c["hr"])[order])
     img_sr = {b: F._highpass(r[1], sigma_px=40) for b, r in res.items()}
     img_lr = {b: F._highpass(r[2], sigma_px=40) for b, r in res.items()}
-    vmax_sr = np.percentile(np.abs(np.concatenate(
-        [v.ravel()[::7] for v in img_sr.values()])), 97)
-    vmax_lr = np.percentile(np.abs(next(iter(img_lr.values())).ravel()[::7]), 97)
+    vmax = np.percentile(np.abs(next(iter(img_lr.values())).ravel()[::7]), 97)
     top, lows = [], []
     for j, (b, c) in enumerate(caches.items()):
         wl = c["wl_um"]
@@ -238,13 +240,11 @@ def plot_river_bands(caches):
         n = len(zt)
         ztk = [z for z in (0, 0.5, 1, 1.5, 2, 2.5, 3) if zt[0] <= z <= zt[-1]]
         wt = np.linspace(wl[0], wl[-1], 300)
-        ims = []
-        for row, (img, vmax) in enumerate(((img_lr[b], vmax_lr),
-                                           (img_sr[b], vmax_sr))):
+        for row, img in enumerate((img_lr[b], img_sr[b])):
             ax = fig.add_subplot(gs[row, j])
-            ims.append(ax.imshow(img, aspect="auto", origin="lower",
-                                 extent=[wl[0], wl[-1], 0, n], cmap="RdBu_r",
-                                 vmin=-vmax, vmax=vmax))
+            im = ax.imshow(img, aspect="auto", origin="lower",
+                           extent=[wl[0], wl[-1], 0, n], cmap="RdBu_r",
+                           vmin=-vmax, vmax=vmax)
             ax.set_yticks([min(int(np.searchsorted(zt, z)), n - 1) for z in ztk])
             ax.set_yticklabels([str(z) for z in ztk] if j == 0 else [])
             plt.setp(ax.get_xticklabels(), visible=False)
@@ -281,12 +281,9 @@ def plot_river_bands(caches):
     for a in lows:
         a.set_ylim(0, ymax)
     _titled(top, caches)
-    for row, (im, lab) in enumerate(zip(ims, ("LR $-$ HR (norm. flux)",
-                                              "SR $-$ HR (norm. flux)"),
-                                        strict=True)):
-        cb = fig.colorbar(im, cax=fig.add_subplot(gs[row, n_b]))
-        cb.set_label(lab, fontsize=9)
-        cb.ax.tick_params(labelsize=8)
+    cb = fig.colorbar(im, cax=fig.add_subplot(gs[:2, n_b]))
+    cb.set_label("Residual (norm. flux)", fontsize=9)
+    cb.ax.tick_params(labelsize=8)
     return F._save(fig, "residual_river_bands.png")
 
 
@@ -325,26 +322,204 @@ def plot_psd_bands(caches):
 # ---------------------------------------------------------------------------
 # Example spectra
 # ---------------------------------------------------------------------------
-def plot_spectra_bands(caches):
-    """One galaxy, one panel per configuration.
+#: The spectra of the example figure: hard cases that the pipeline gets right,
+#: chosen by hand. A galaxy is observed in several exposures,
+#: so a spectrum is named by object id, visit and detector. Each entry then
+#: gives the line complex its zooms frame (a key of ``figures.LINE_GROUPS``),
+#: the ``line_snr`` column and name of the line its title quotes, and the case.
+HARD_CASES = (
+    (10307100430361, 16189, 15, "halpha_nii", 3, r"H$\alpha$",
+     "A marginal detection"),
+    (10307101343410, 16188, 17, "o3hb", 2, r"[O III] $\lambda5007$",
+     "A faint doublet"),
+    (10307000644988, 16189, 7, "halpha_nii", 3, r"H$\alpha$",
+     "A single line and a wrong redshift"),
+    (10307101714760, 16188, 8, "halpha_nii", 3, r"H$\alpha$",
+     "A marginal line at the red end of the band"),
+)
+HARD_CASES_CACHE = "outputs/hard_cases_cache.npz"
+_DATASET = "data/dataset/ou2024_h10307_dataset.npz"
 
-    The galaxy is the best-ranked example of the first configuration. It is
-    kept fixed, so the panels differ only in the redshift SR2 was given.
-    """
+
+def _test_rows(cases, data: str = _DATASET) -> list[int]:
+    """Row of the prediction cache for each ``(object id, visit, sca, ...)``."""
+    from ..data import get_or_make_group_split
+    d = np.load(data, allow_pickle=True)
+    _, test_idx, _ = get_or_make_group_split(os.path.abspath(data), d["ids"],
+                                             verbose=False)
+    ids, visit, sca = (d[k][test_idx] for k in ("ids", "visit", "sca"))
+    rows = []
+    for oid, v, s, *_ in cases:
+        (row,) = np.where((ids == oid) & (visit == v) & (sca == s))[0]
+        rows.append(int(row))
+    return rows
+
+
+def _draw_stamp(ax, cut, p, half=30):
+    x0, _, y0, _ = cut[p + "region_box"]
+    xc, yc = cut[p + "xy"]
+    img = cut[p + "region_direct"]
+    ext = (x0 - xc, x0 - xc + img.shape[1], y0 - yc, y0 - yc + img.shape[0])
+    ax.imshow(img, extent=ext, aspect="equal", **_stretch(img, 20, 99.9))
+    ax.set_xlim(-half, half)
+    ax.set_ylim(-half, half)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # 1 arcsec at the 0.11 arcsec pixels of the WFI
+    bar = 1.0 / 0.11
+    ax.plot([-half + 4, -half + 4 + bar], [-half + 5] * 2, color="k", lw=2)
+    ax.text(-half + 4 + bar / 2, -half + 7, '1"', ha="center", va="bottom",
+            fontsize=9)
+    ax.text(0.04, 0.96, "H158", transform=ax.transAxes, va="top", fontsize=10)
+
+
+def _draw_photometry(ax, cut, p, wl):
+    """The nine bands of the redshift stage, as AB magnitudes."""
+    names = [str(n) for n in cut["phot_bands"]]
+    sig = phot_flux_sigma(names)
+    for idx, col, mk, lab in ((RUBIN_BANDS, F.COLOR_LR, "o", "Rubin"),
+                              (ROMAN_MEDIUM_BANDS, F.COLOR_HR, "s", "Roman")):
+        lam = np.array([BAND_PIVOT[names[i]] for i in idx]) * 1e-4
+        f = np.array([cut[p + "phot"][i] for i in idx], dtype=float)
+        zp = np.array([AB_ZEROPOINT[names[i]] for i in idx])
+        # the errors the redshift stage is given: 0.05 mag on every band, and
+        # the depth of the ten-year coadd on the Rubin ones
+        err = np.hypot(0.05, 1.0857 * sig[list(idx)] / f)
+        ax.errorbar(lam, zp - 2.5 * np.log10(f), yerr=err, fmt=mk, color=col,
+                    ms=5, lw=1.1, capsize=2, label=lab)
+    ax.axvspan(wl[0], wl[-1], color="0.90", lw=0, zorder=0)
+    ax.text(0.5 * (wl[0] + wl[-1]), 0.05, "grism", ha="center", fontsize=8.5,
+            color="0.35", transform=ax.get_xaxis_transform())
+    ax.set_xlim(0.25, 2.0)
+    ax.margins(y=0.3)
+    ax.invert_yaxis()
+    ax.set_xlabel(r"Wavelength [$\mu$m]", fontsize=10)
+    ax.set_ylabel("AB magnitude", fontsize=10)
+    ax.tick_params(labelsize=8.5)
+    ax.legend(frameon=False, fontsize=8, loc="upper left", handletextpad=0.2,
+              borderpad=0.1)
+
+
+def _draw_two_d(ax, cut, p, wl, half_h=9):
+    lam = cut[p + "beam_lam"].astype(np.float64) * 1e-4
+    in_band = np.where((lam > wl[0]) & (lam < wl[-1]))[0]
+    own = cut[p + "beam_own"]
+    trace = int(np.argmax(own[:, in_band].sum(axis=1)))
+    r0, r1 = max(trace - half_h, 0), min(trace + half_h, own.shape[0])
+    order = np.argsort(lam)
+    two_d = cut[p + "beam_clean"][r0:r1][:, order]
+    ax.imshow(two_d, extent=(lam[order][0], lam[order][-1], r0 - trace, r1 - trace),
+              aspect="auto", **_stretch(two_d, 5, 99.8))
+    ax.set_xlim(wl[0], wl[-1])
+    ax.set_yticks([])
+    ax.set_ylabel("2D", fontsize=10)
+    plt.setp(ax.get_xticklabels(), visible=False)
+
+
+def _draw_hard_case(fig, cell, caches, cut, case, row, letter):
+    oid, _, _, group, snr_col, line_name, what = case
+    p = f"{oid}_"
     first = next(iter(caches.values()))
-    order = F._rank_line_examples(first)
-    if not order:
-        raise SystemExit("no examples pass the line-fidelity cuts")
-    i = order[0]
-    fig, axes = plt.subplots(len(caches), 1, figsize=(13, 3.3 * len(caches)),
-                             squeeze=False, sharex=True, constrained_layout=True)
-    for ax, (b, c) in zip(axes[:, 0], caches.items(), strict=True):
-        F._draw_example(ax, c, i, set(), sr_label="SR (ours)")
-        ax.set_title(b.label, loc="left", fontsize=11)
-    axes[-1, 0].set_xlabel(r"Observed wavelength [$\mu$m]")
-    h, lab = axes[0, 0].get_legend_handles_labels()
-    fig.legend(h, lab, loc="outside upper center", ncol=3, frameon=False,
-               fontsize=11)
+    wl, hr, lr = first["wl_um"], first["hr"][row], first["lr"][row]
+    z = float(first["z_true"][row])
+    snr = float(first["line_snr"][row, snr_col])
+
+    card = cell.subgridspec(1, 2, width_ratios=[1, 4.7], wspace=0.11)
+    left = card[0].subgridspec(2, 1, height_ratios=[1.25, 1], hspace=0.12)
+    right = card[1].subgridspec(2, 1, height_ratios=[1.75, 1.25], hspace=0.66)
+    top = right[0].subgridspec(2, 1, height_ratios=[0.3, 1], hspace=0.04)
+    zooms = right[1].subgridspec(1, len(caches), wspace=0.1)
+
+    _draw_stamp(fig.add_subplot(left[0]), cut, p)
+    _draw_photometry(fig.add_subplot(left[1]), cut, p, wl)
+
+    a2 = fig.add_subplot(top[0])
+    _draw_two_d(a2, cut, p, wl)
+    a2.set_title(rf"$\bf{{({letter})}}$ {what}: {line_name} at "
+                 rf"$\mathrm{{S/N}}={snr:.1f}$", loc="left", fontsize=12.5)
+    a2.set_title(rf"$z={z:.3f}$,  $m_{{\rm H158}}={float(cut[p + 'ab']):.1f}$",
+                 loc="right", fontsize=11)
+
+    # -- the whole band, with the output of the first configuration --
+    ax = fig.add_subplot(top[1], sharex=a2)
+    sr = first["sr2"][row]
+    ax.plot(wl, hr, color=F.COLOR_HR, lw=1.0, alpha=0.8, label="HR target",
+            zorder=1)
+    ax.plot(wl, lr, color=F.COLOR_LR, lw=1.0, ls="--", alpha=0.85,
+            label="LR grism", zorder=2)
+    ax.plot(wl, sr, color=F.COLOR_SR, lw=1.5, alpha=0.95, label="SR (ours)",
+            zorder=3)
+    ax.set_ylabel(r"$F_\lambda$ (norm.)", fontsize=10.5)
+    ax.tick_params(labelsize=9)
+    y_lo, y_hi = F._robust_ylims(np.concatenate([hr, lr, sr]))
+    y_hi = max(y_hi, 1.05 * max(hr.max(), sr.max()))
+    rep = F._line_report(wl, hr, sr, z, first["line_snr"][row])
+    marks = [(name, rest * (1 + z)) for name, rest in F.MAIN_LABELS
+             if any(abs(r["lam_rest"] - rest) < 0.003 for r in rep)]
+    F._annotate_lines(ax, marks, y_lo, y_hi, head=0.16, fontsize=9)
+    x0, x1 = (v * (1 + z) for v in F.LINE_GROUPS[group]["rest"])
+    ax.axvspan(x0, x1, color=F.COLOR_SR, alpha=0.16, lw=0, zorder=0)
+
+    # -- the line complex, one panel per configuration --
+    m = (wl >= x0) & (wl <= x1)
+    stack = np.concatenate([hr[m], lr[m]] + [c["sr2"][row][m]
+                                             for c in caches.values()])
+    zy_lo = F._robust_ylims(stack, p_lo=1, p_hi=99, pad_frac=0.10)[0]
+    zy_hi = float(stack.max()) + 0.06 * float(np.ptp(stack))
+    zmarks = [(r["name"], r["lam_obs"]) for r in rep if x0 <= r["lam_obs"] <= x1]
+    # the redshift goes on the side of the panel that the labelled lines leave free
+    z_left = bool(zmarks) and np.mean([lam for _, lam in zmarks]) > 0.5 * (x0 + x1)
+    for q, (b, c) in enumerate(caches.items()):
+        az = fig.add_subplot(zooms[q])
+        az.plot(wl[m], hr[m], color=F.COLOR_HR, lw=1.2, alpha=0.85, zorder=1)
+        az.plot(wl[m], lr[m], color=F.COLOR_LR, lw=1.1, ls="--", alpha=0.85,
+                zorder=2)
+        az.plot(wl[m], c["sr2"][row][m], color=F.COLOR_SR, lw=1.8, zorder=3)
+        az.set_xlim(x0, x1)
+        az.xaxis.set_major_locator(plt.MaxNLocator(3, prune="both"))
+        az.tick_params(labelsize=8.5)
+        if q:
+            plt.setp(az.get_yticklabels(), visible=False)
+        else:
+            az.set_ylabel(r"$F_\lambda$ (norm.)", fontsize=10.5)
+        zp = float(c["z_pred"][row])
+        bad = abs(zp - z) / (1 + z) > 0.15
+        az.set_title(b.label, fontsize=10)
+        # the redshift this configuration handed to SR2, red when it is wrong
+        az.text(0.03 if z_left else 0.97, 0.70, rf"$\hat z={zp:.3f}$",
+                transform=az.transAxes,
+                ha="left" if z_left else "right", va="top", fontsize=10, zorder=8,
+                color="#c1272d" if bad else "0.15",
+                bbox=dict(fc="white", ec="none", pad=1.5, alpha=0.85))
+        F._annotate_lines(az, zmarks, zy_lo, zy_hi, head=0.17, fontsize=8)
+    return ax
+
+
+def plot_spectra_bands(caches, cutouts: str = HARD_CASES_CACHE):
+    """Hard cases, one block per galaxy.
+
+    Each block shows what the pipeline is given (the H158 image, the nine
+    bands of photometry, the two-dimensional spectrum and its extraction) and
+    what it returns: the output over the whole band for the first
+    configuration, then the line complex once per configuration. The
+    two-dimensional arrays are not in the dataset, so the detector images of
+    these galaxies are dispersed again the first time the figure is made.
+    """
+    rows = _test_rows(HARD_CASES)
+    if not os.path.exists(cutouts):
+        build_cutout_cache({c[0]: c[1:3] for c in HARD_CASES}, cutouts)
+    cut = np.load(cutouts, allow_pickle=True)
+    n = len(HARD_CASES)
+    fig = plt.figure(figsize=(11, 2.9 * n))
+    outer = GridSpec(n, 1, figure=fig, hspace=0.36, left=0.055, right=0.99,
+                     top=1 - 0.25 / n, bottom=0.2 / n)
+    for k, case in enumerate(HARD_CASES):
+        ax = _draw_hard_case(fig, outer[k], caches, cut, case, rows[k],
+                             "abcdefgh"[k])
+    h, lab = ax.get_legend_handles_labels()
+    fig.legend(h, lab, loc="upper center", ncol=3, frameon=False, fontsize=11.5,
+               bbox_to_anchor=(0.6, 1.0), borderaxespad=0.2)
+    fig.supxlabel(r"Observed wavelength [$\mu$m]", fontsize=12, x=0.6)
     return F._save(fig, "spectra_examples_bands.png")
 
 
@@ -469,19 +644,14 @@ def plot_response_bands(bands=BANDS, outdir: str | None = None):
         fig, axes = plt.subplots(1, len(found), sharey=True, squeeze=False,
                                  figsize=(3.9 * len(found) + 0.8, 4.4))
         for ax, (b, s) in zip(axes[0], found, strict=True):
-            labels = None
-            for key, lab, col, mk, off in (("sr1", "SR1", F.COLOR_LR, "o", -0.09),
-                                           ("sr2", "SR2 (full pipeline)",
-                                            F.COLOR_SR, "s", +0.09)):
-                rows = s[key]["by_snr"]
-                xs = np.arange(len(rows))
-                med = np.array([r["median"] for r in rows])
-                ax.errorbar(xs + off, med,
-                            yerr=[med - [r["p25"] for r in rows],
-                                  [r["p75"] for r in rows] - med],
-                            color=col, marker=mk, ms=7, lw=1.6, capsize=3.5,
-                            label=lab)
-                labels = [f"{r['bin']}\n$n$ = {r['n']:,}" for r in rows]
+            rows = s["sr2"]["by_snr"]
+            xs = np.arange(len(rows))
+            med = np.array([r["median"] for r in rows])
+            ax.errorbar(xs, med,
+                        yerr=[med - [r["p25"] for r in rows],
+                              [r["p75"] for r in rows] - med],
+                        color=F.COLOR_SR, marker="s", ms=7, lw=1.6, capsize=3.5)
+            labels = [f"{r['bin']}\n$n$ = {r['n']:,}" for r in rows]
             ax.axhline(1.0, color="0.3", lw=1.0, ls="--")
             ax.axhline(0.0, color="0.3", lw=1.0, ls=":")
             ax.set_xticks(np.arange(len(labels)), labels, fontsize=9)
@@ -489,8 +659,6 @@ def plot_response_bands(bands=BANDS, outdir: str | None = None):
             ax.set_ylim(-0.15, 1.25)
             ax.set_title(b.label, fontsize=12)
         axes[0, 0].set_ylabel(r"Response exponent $r$")
-        axes[0, 0].legend(frameon=False, fontsize=9.5, loc="upper left",
-                          bbox_to_anchor=(0.0, 0.80))
         axes[0, -1].text(0.98, 1.03, "follows the input", fontsize=9, color="0.3",
                          ha="right", transform=axes[0, -1].get_yaxis_transform())
         axes[0, -1].text(0.98, -0.10, "ignores the input", fontsize=9, color="0.3",

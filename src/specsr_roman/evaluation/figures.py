@@ -726,7 +726,7 @@ def plot_sample(c):
     nl = _n_strong_in_band(wl, zt)
     # the part of the sample the HLSS galaxy redshift survey would select
     hlss = hlss_cosmology_sample(zt, c['ha_flux'], c['oiii_flux'])
-    hlss_kw = dict(histtype='step', color='k', lw=1.5, zorder=3)
+    hlss_kw = dict(histtype='step', color='#00e0c6', lw=2.4, zorder=2.4)
 
     # redshift, split by how many strong lines the band contains
     fig, a = plt.subplots(figsize=(6.4, 4.4))
