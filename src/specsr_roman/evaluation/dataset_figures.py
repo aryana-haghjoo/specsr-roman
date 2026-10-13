@@ -31,7 +31,15 @@ from ..grids import (
                       WAVE_HR,
                       WAVE_LR,
 )
-from .figures import COLOR_HR, COLOR_LR, COLOR_SR, MAIN_LABELS, FigureStyle, _save
+from .figures import (
+    COLOR_HR,
+    COLOR_LR,
+    COLOR_SR,
+    MAIN_LABELS,
+    FigureStyle,
+    _save,
+    draw_sample,
+)
 
 __all__ = ["build_example_cache", "build_cutout_cache", "plot_example", "plot_parent_sample",
            "make_dataset_figures", "EXAMPLE_CACHE", "PARENT_STATS"]
@@ -247,19 +255,27 @@ def plot_example(cache: str = EXAMPLE_CACHE, which: int = EXAMPLE_ID,
     # the source and the in-band part of its trace, without the frame padding
     xlim = (max(x0 - xc, min(bx0 + in_band.min() - xc, 0) - 70),
             min(x1 - xc, max(bx0 + in_band.max() - xc, 0) + 70))
-    img_h = 11.6 * (ylim[1] - ylim[0]) / (xlim[1] - xlim[0])
-    fig = plt.figure(figsize=(13, 2 * img_h + 6.6))
-    gs = GridSpec(4, 1, figure=fig, height_ratios=[img_h, img_h, 1.05, 3.6],
-                  hspace=0.5)
+    # Every panel spans the same width. The two images get the height that
+    # keeps their pixels square at that width, and the gaps are sized in
+    # inches to what sits in them (a title, or a title and an axis label).
+    fig_w, left, right = 13.0, 0.075, 0.99
+    img_h = fig_w * (right - left) * (ylim[1] - ylim[0]) / (xlim[1] - xlim[0])
+    rows = [img_h, 0.42, img_h, 1.0, 1.05, 0.12, 3.4]
+    top, bottom = 0.35, 0.65
+    fig_h = sum(rows) + top + bottom
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    gs = GridSpec(len(rows), 1, figure=fig, height_ratios=rows, hspace=0,
+                  left=left, right=right, top=1 - top / fig_h,
+                  bottom=bottom / fig_h)
 
     # -- the image, and the grism exposure dispersed from it --
     a = fig.add_subplot(gs[0])
-    a.imshow(c[p + "region_direct"], extent=ext, aspect="equal",
+    a.imshow(c[p + "region_direct"], extent=ext, aspect="auto",
              **_stretch(c[p + "region_direct"], 20, 99.6))
     a.add_patch(plt.Circle((0, 0), 16, fill=False, color=COLOR_SR, lw=1.8))
     a.set_title("OpenUniverse2024 H158 image", fontsize=12, loc="left")
-    b = fig.add_subplot(gs[1], sharex=a, sharey=a)
-    b.imshow(c[p + "region_grism"], extent=ext, aspect="equal",
+    b = fig.add_subplot(gs[2], sharex=a, sharey=a)
+    b.imshow(c[p + "region_grism"], extent=ext, aspect="auto",
              **_stretch(c[p + "region_grism"], 20, 99.6))
     b.add_patch(plt.Rectangle((bx0 + in_band.min() - xc, by0 + r0 - yc),
                               np.ptp(in_band), r1 - r0, fill=False,
@@ -277,7 +293,7 @@ def plot_example(cache: str = EXAMPLE_CACHE, which: int = EXAMPLE_ID,
     order = np.argsort(lam)
     two_d = c[p + "beam_clean"][r0:r1][:, order]
     lam = lam[order]
-    d = fig.add_subplot(gs[2])
+    d = fig.add_subplot(gs[4])
     d.imshow(two_d, extent=(lam[0], lam[-1], r0 - trace, r1 - trace), aspect="auto",
              **_stretch(two_d, 5, 99.8))
     d.set_xlim(wl_hr[0], wl_hr[-1])
@@ -287,7 +303,7 @@ def plot_example(cache: str = EXAMPLE_CACHE, which: int = EXAMPLE_ID,
     plt.setp(d.get_xticklabels(), visible=False)
 
     # -- the training pair --
-    e = fig.add_subplot(gs[3], sharex=d)
+    e = fig.add_subplot(gs[6], sharex=d)
     ok = np.isfinite(lr)
     e.fill_between(wl_lr[ok], (lr - lr_err)[ok], (lr + lr_err)[ok],
                    color=COLOR_LR, alpha=0.22, lw=0)
@@ -320,8 +336,13 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
                        deep_dataset: str = "data/dataset/ou2024_h10307_deep_dataset.npz",
                        data_dir: str = "data/ou2024", healpix: int = 10307,
                        n_parent: int = 60000,
-                       name: str = "ou2024_parent.png", seed: int = 0):
+                       name: str = "ou2024_parent.png", seed: int = 0,
+                       pred_cache: str = "outputs/pred_cache.npz"):
     """The sample in three steps: the catalogue, what the image detects, what is kept.
+
+    A third panel shows the redshifts of the held-out spectra by the number of
+    strong lines in the grism band. It reads ``pred_cache`` and is left out
+    when that file does not exist.
 
     Nothing is cut on magnitude. The faint limit of the middle population is
     the detection in the H158 image, and the step from it to the sample is the
@@ -357,8 +378,17 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
 
     # a colour of its own for the catalogue: light grey vanished on the page
     col_all, col_det = "#2a9d8f", COLOR_HR
-    fig = plt.figure(figsize=(13, 5.4))
-    outer = GridSpec(1, 2, figure=fig, wspace=0.22)
+    held_out = np.load(pred_cache) if os.path.exists(pred_cache) else None
+    # three panels share the page width, so the text is set larger
+    big = held_out is not None
+    fs_title, fs_leg = (15, 10.5) if big else (12, 9)
+    if big:
+        plt.rcParams.update({"axes.labelsize": 16, "xtick.labelsize": 12.5,
+                             "ytick.labelsize": 12.5})
+    fig = plt.figure(figsize=(17.5, 5.4) if big else (13, 5.4))
+    outer = GridSpec(1, 3 if big else 2, figure=fig,
+                     wspace=0.25 if big else 0.22,
+                     width_ratios=[1.22, 1, 1] if big else None)
 
     # -- (a) redshift against magnitude, with marginals --
     ga = outer[0].subgridspec(2, 2, height_ratios=[1, 3.6], width_ratios=[3.6, 1],
@@ -382,18 +412,18 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
         ar.hist(mm, bins=mb, color=col, orientation="horizontal", **step)
     for h in (at, ar):
         h.axis("off")
-    at.set_title("(a) redshift and apparent magnitude", fontsize=12)
+    at.set_title("(a) redshift and apparent magnitude", fontsize=fs_title)
     handles = [
         plt.Line2D([], [], color=col_all, lw=2,
-                   label=f"OpenUniverse2024 galaxies ({len(gid):,})"),
+                   label=f"OpenUniverse2024 ({len(gid):,})"),
         plt.Line2D([], [], color=col_det, lw=2,
-                   label=f"detected in our images ({len(r_d):,})"),
+                   label=f"detected ({len(r_d):,})"),
         plt.Line2D([], [], color=COLOR_SR, lw=2,
-                   label=f"above the line-flux limit ({len(r_s):,})"),
+                   label=f"line-flux limit ({len(r_s):,})"),
     ]
     # upper right: the corner no population reaches
     ax.legend(handles=handles, frameon=True, framealpha=0.9, edgecolor="none",
-              fontsize=9, loc="upper right")
+              fontsize=fs_leg, loc="upper right")
 
     # -- (b) stellar mass against redshift --
     bx = fig.add_subplot(outer[1])
@@ -403,7 +433,14 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
     bx.set_ylim(7.5, 12.2)
     bx.set_xlabel(r"Redshift $z$")
     bx.set_ylabel(r"$\log_{10}(M_\star/M_\odot)$")
-    bx.set_title("(b) stellar mass", fontsize=12)
+    bx.set_title("(b) stellar mass", fontsize=fs_title)
+
+    # -- (c) the held-out spectra, by the strong lines in the band --
+    if held_out is not None:
+        cx = fig.add_subplot(outer[2])
+        draw_sample(cx, held_out, legend_fontsize=fs_leg)
+        cx.set_xlim(0, 3.1)
+        cx.set_title("(c) strong lines in the grism band", fontsize=fs_title)
     path = _save(fig, name)
 
     def pct(v):

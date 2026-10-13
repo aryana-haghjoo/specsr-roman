@@ -199,13 +199,12 @@ def _breakdown(label, z_pred, z_true, best_snr):
 
 def plot_band_comparison(rows: list[dict], brk: list[dict],
                          out_dir: str = "outputs") -> str:
-    """Render ``phot_band_comparison.png``: what Rubin adds, and what the grism does.
+    """Render ``phot_band_comparison.png``: what the grism does.
 
-    Left, the outlier rate over the whole split. Middle and right, scatter and
-    outlier rate against best-line S/N. The scatter panel is the one that
+    One panel, the scatter against best-line S/N for every configuration. It
     separates the heads with a spectrum from the photometry-only control: the
-    colours remove the outliers, the grism sets the precision, and it does so
-    in proportion to how detectable the line is.
+    colours remove the outliers, the grism sets the precision. The outlier
+    rates are quoted in the text and in ``phot_band_zpred.png``.
     """
     from .figures import COLOR_HR, COLOR_LR, COLOR_SR, FigureStyle, _save
 
@@ -217,45 +216,22 @@ def plot_band_comparison(rows: list[dict], brk: list[dict],
              else f"{lo:g}–{hi:g}" for lo, hi in bins]
     w = 0.8 / len(labels)
 
-    def grouped(ax, key, scale):
+    with FigureStyle():
+        fig, ax = plt.subplots(figsize=(6.2, 4.4))
         for j, k in enumerate(labels):
-            vals = {(b["lo"], b["hi"]): scale * b[key] for b in sub
+            vals = {(b["lo"], b["hi"]): b["dz_nmad"] for b in sub
                     if b["config"] == k}
             ax.bar(np.arange(len(bins)) + (j - (len(labels) - 1) / 2) * w,
                    [vals.get(bn, np.nan) for bn in bins], width=w,
                    color=colors[k], label=k, zorder=3)
         ax.set_xticks(np.arange(len(bins)))
         ax.set_xticklabels(ticks)
-        ax.set_xlabel("best-line S/N")
+        ax.set_xlabel("S/N of the best line")
+        ax.set_yscale("log")
+        ax.set_ylabel(r"$\sigma_{\rm NMAD}$")
         ax.grid(axis="y", alpha=0.25, zorder=0)
-
-    with FigureStyle():
-        fig, (a, b, c) = plt.subplots(1, 3, figsize=(14.5, 4.2))
-
-        y = [100 * r["catastrophic_frac"] for r in rows]
-        xs = np.arange(len(rows))
-        a.bar(xs, y, width=0.6, color=[colors[k] for k in labels], zorder=3)
-        for x, yy in zip(xs, y, strict=True):
-            a.text(x, yy + 0.02 * max(y), f"{yy:.1f}%", ha="center",
-                   va="bottom", fontsize=10)
-        a.set_xticks(xs)
-        a.set_xticklabels([k.replace(", ", "\n").replace("Roman ", "Roman\n")
-                           for k in labels], fontsize=9)
-        a.set_ylabel("catastrophic outliers [%]")
-        a.set_ylim(0, max(y) * 1.15)
-        a.grid(axis="y", alpha=0.25, zorder=0)
-        a.set_title("Outliers, whole test split", fontsize=12)
-
-        grouped(b, "dz_nmad", 1.0)
-        b.set_yscale("log")
-        b.set_ylabel(r"$\sigma_{\rm NMAD}$")
-        b.set_title("Scatter by line detectability", fontsize=12)
-        b.legend(frameon=False, fontsize=9, loc="upper right")
-
-        grouped(c, "catastrophic_frac", 100.0)
-        c.set_ylabel("catastrophic outliers [%]")
-        c.set_title("Outliers by line detectability", fontsize=12)
-
+        ax.legend(frameon=False, fontsize=10, ncol=2, loc="lower center",
+                  bbox_to_anchor=(0.5, 1.0), columnspacing=1.2)
         fig.tight_layout()
         return _save(fig, "phot_band_comparison.png", outdir=out_dir)
 

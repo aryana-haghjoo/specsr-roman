@@ -721,15 +721,15 @@ def _n_strong_in_band(wl, z):
                for w in STRONG_LINES_AA)
 
 
-def plot_sample(c):
+def draw_sample(a, c, legend_fontsize=10):
+    """Redshift histogram of the held-out sample on ``a``, split by how many
+    strong lines the band contains, with the HLSS cosmology selection outlined."""
     wl, zt = c['wl_um'], c['z_true']
     nl = _n_strong_in_band(wl, zt)
     # the part of the sample the HLSS galaxy redshift survey would select
     hlss = hlss_cosmology_sample(zt, c['ha_flux'], c['oiii_flux'])
     hlss_kw = dict(histtype='step', color='#00e0c6', lw=2.4, zorder=2.4)
 
-    # redshift, split by how many strong lines the band contains
-    fig, a = plt.subplots(figsize=(6.4, 4.4))
     edges = np.linspace(0, max(3.0, zt.max()), 46)
     groups = [(nl == 0, 'no strong line in band', '0.72'),
               (nl == 1, 'one strong line', COLOR_SR),
@@ -740,7 +740,12 @@ def plot_sample(c):
     a.hist(zt[hlss], bins=edges, label='HLSS cosmology selection', **hlss_kw)
     a.set_xlim(edges[0], edges[-1])
     a.set_xlabel(r'Redshift $z$'); a.set_ylabel('Number of spectra')
-    a.legend(frameon=False, fontsize=10)
+    a.legend(frameon=False, fontsize=legend_fontsize)
+
+
+def plot_sample(c):
+    fig, a = plt.subplots(figsize=(6.4, 4.4))
+    draw_sample(a, c)
     fig.tight_layout()
     _save(fig, 'sample.png')
 

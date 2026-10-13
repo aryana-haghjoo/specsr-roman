@@ -635,35 +635,48 @@ def plot_line_flux(caches, fluxes=None):
 # Response to the input
 # ---------------------------------------------------------------------------
 def plot_response_bands(bands=BANDS, outdir: str | None = None):
-    """Response exponent per recoverability bin, one panel per configuration."""
+    """Response exponent per recoverability bin, the configurations side by side.
+
+    One panel: the configurations give the same exponents, and a panel for
+    each would be three points in an empty frame, four times.
+    """
     found = [(b, json.load(open(b.response))) for b in bands
              if os.path.exists(b.response)]
     if not found:
         raise SystemExit("no prior_dominance_<key>.json found")
+    colors = [F.COLOR_LR, F.COLOR_SR, F.COLOR_HR, "0.5"]
+    markers = ["o", "s", "D", "^"]
+    step = 0.17
     with F.FigureStyle():
-        fig, axes = plt.subplots(1, len(found), sharey=True, squeeze=False,
-                                 figsize=(3.9 * len(found) + 0.8, 4.4))
-        for ax, (b, s) in zip(axes[0], found, strict=True):
+        fig, ax = plt.subplots(figsize=(6.2, 4.6))
+        for q, (b, s) in enumerate(found):
             rows = s["sr2"]["by_snr"]
-            xs = np.arange(len(rows))
+            xs = np.arange(len(rows)) + (q - (len(found) - 1) / 2) * step
             med = np.array([r["median"] for r in rows])
             ax.errorbar(xs, med,
                         yerr=[med - [r["p25"] for r in rows],
                               [r["p75"] for r in rows] - med],
-                        color=F.COLOR_SR, marker="s", ms=7, lw=1.6, capsize=3.5)
-            labels = [f"{r['bin']}\n$n$ = {r['n']:,}" for r in rows]
-            ax.axhline(1.0, color="0.3", lw=1.0, ls="--")
-            ax.axhline(0.0, color="0.3", lw=1.0, ls=":")
-            ax.set_xticks(np.arange(len(labels)), labels, fontsize=9)
-            ax.set_xlim(-0.5, len(labels) - 0.5)
-            ax.set_ylim(-0.15, 1.25)
-            ax.set_title(b.label, fontsize=12)
-        axes[0, 0].set_ylabel(r"Response exponent $r$")
-        axes[0, -1].text(0.98, 1.03, "follows the input", fontsize=9, color="0.3",
-                         ha="right", transform=axes[0, -1].get_yaxis_transform())
-        axes[0, -1].text(0.98, -0.10, "ignores the input", fontsize=9, color="0.3",
-                         ha="right", transform=axes[0, -1].get_yaxis_transform())
-        fig.supxlabel("Line recoverability", fontsize=13)
+                        color=colors[q % len(colors)],
+                        marker=markers[q % len(markers)], ms=6.5, lw=1.4,
+                        capsize=3, label=b.label)
+        bins = [r["bin"] for r in found[0][1]["sr2"]["by_snr"]]
+        size = [np.mean([s["sr2"]["by_snr"][k]["n"] for _, s in found])
+                for k in range(len(bins))]
+        ax.axhline(1.0, color="0.3", lw=1.0, ls="--")
+        ax.axhline(0.0, color="0.3", lw=1.0, ls=":")
+        ax.set_xticks(np.arange(len(bins)),
+                      [f"{b}\n$n\\approx{round(n, -1):,.0f}$"
+                       for b, n in zip(bins, size, strict=True)])
+        ax.set_xlim(-0.5, len(bins) - 0.5)
+        ax.set_ylim(-0.15, 1.12)
+        ax.set_ylabel(r"Response exponent $r$")
+        ax.set_xlabel("Line recoverability")
+        ax.text(0.985, 1.02, "follows the input", fontsize=9, color="0.3",
+                ha="right", transform=ax.get_yaxis_transform())
+        ax.text(0.985, -0.10, "ignores the input", fontsize=9, color="0.3",
+                ha="right", transform=ax.get_yaxis_transform())
+        ax.legend(frameon=False, fontsize=9.5, loc="upper left",
+                  bbox_to_anchor=(0.0, 0.93))
         fig.tight_layout()
         return F._save(fig, "response_bands.png", outdir=outdir)
 
