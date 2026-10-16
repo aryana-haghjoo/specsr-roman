@@ -1,39 +1,22 @@
-"""The inverse-crime audit: is the model reading the data or reciting the prior?
+"""Line-perturbation sensitivity of frozen spectral reconstruction models.
 
-The training targets are model SEDs. A network can score well on every
-reconstruction metric by learning the simulation's manifold --- its fixed line
-ratios, its single dust law --- rather than by measuring anything. No
-reconstruction metric can tell the two apart, because on the manifold they
-give the same answer.
+Scale a recovered target line by a factor f, forward-model the difference
+through a Gaussian grism LSF into the observed spectrum, and measure
+r = log(L_perturbed / L_original) / log(f). The original errors and the
+source's noisy photometry are held fixed.
 
-This test forces them apart. Take a source whose line the model does recover.
-Scale that line in the *truth* by a factor ``f`` --- deliberately off the
-manifold, a line ratio the simulation never produces --- forward-model the
-*difference* through a Gaussian LSF at grism resolution onto the observed LR
-spectrum, and re-run the model. Then measure the response exponent
+The primary legacy_lr convention includes deployed input-dependent flux
+restoration. A response of one is proportional output change; zero is no
+change in that convention. target_fixed instead holds target statistics
+constant and isolates normalized network output. Input normalization alone
+can suppress its response even for an identity estimator, so it is not a
+corrected physical response or a fraction attributable to a learned prior.
 
-    r = log(L_pred_perturbed / L_pred_original) / log(f)
-
-``r = 1`` means the model tracked the change: it read the line strength from
-the data. ``r = 0`` means it produced the same line regardless: it recited the
-prior.
-
-Reading the result requires care. Where the injected change is genuinely below
-the noise, a low ``r`` is the *correct* behaviour --- falling back on the prior
-is what a well-calibrated model should do when the data says nothing. So bin
-by the detectability of the injected change, and judge ``r`` only where the
-information is physically present. Aggregate ``r`` is dominated by
-unrecoverable cases and understates a good model.
-
-Historical v1 results (mixed-unit eligibility), on the 3,552 held-out spectra with a detected line
-(S/N >= 2): 0.22 for the published SR1 and 0.17 for the full pipeline. By
-recoverability bin (marginal, good, strong): 0.27, 0.21, 0.12 for SR1 and
-0.14, 0.16, 0.24 for the full pipeline. SR2 lowers the response where lines
-are faint, which is where it adds the most flux, and raises it where they are
-strong.
-Anti-prior augmentation raised an earlier SR1 from 0.14 to 0.51 at fixed
-detectability, at the cost of absolute line recovery, which is why the
-published SR1 is the unaugmented one and this remains open work.
+Summaries retain original-line and injected-change S/N breakdowns. Low
+response to an injection below the noise can be appropriate. The Gaussian
+spectral injection does not repeat two-dimensional morphological dispersion.
+Per-response records support matched normalization controls and galaxy-grouped
+bootstrap intervals. See the v0.6.1 audit report for the frozen test results.
 """
 
 from __future__ import annotations
@@ -338,7 +321,7 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
         out["overall_median_r"] = (float(np.median(rec[:, 2])) if len(rec)
                                    else float("nan"))
         print(f"  OVERALL response exponent: {out['overall_median_r']:.3f} "
-              "(1 = reads the data, 0 = recites the prior)")
+              "(1 = proportional response, 0 = no response in the selected output scale)")
         # The aggregate mixes lines the data constrain well with lines they
         # barely constrain. Split by the recoverability bin of the best line.
         for name, (lo, hi) in RECOVERABILITY_BINS.items():
@@ -411,9 +394,9 @@ def plot_response(summary: dict, outdir: str = "outputs/figures",
             labels = [f"{r['bin']}\n$n$ = {r['n']:,}" for r in rows]
         ax.axhline(1.0, color="0.3", lw=1.0, ls="--")
         ax.axhline(0.0, color="0.3", lw=1.0, ls=":")
-        ax.text(0.99, 1.03, "follows the input", fontsize=9.5, color="0.3",
+        ax.text(0.99, 1.03, "proportional response", fontsize=9.5, color="0.3",
                 ha="right", transform=ax.get_yaxis_transform())
-        ax.text(0.99, -0.10, "ignores the input", fontsize=9.5, color="0.3",
+        ax.text(0.99, -0.10, "no output response", fontsize=9.5, color="0.3",
                 ha="right", transform=ax.get_yaxis_transform())
         if labels:
             ax.set_xticks(np.arange(len(labels)), labels)

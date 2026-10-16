@@ -1,0 +1,129 @@
+{
+  "cache": "pred_cache_rubin_y10.npz",
+  "cache_sha256": "bbb62d7ec9414e61b4148e09617b667d21601f339c974837acf34684e29b38cc",
+  "data": "ou2024_h10307_dataset.npz",
+  "evaluation_status": "three_way test",
+  "spectral_uncertainty": {
+    "all": {
+      "n_pixels": 5960000,
+      "coverage": {
+        "1.0": 0.8680969798657718,
+        "1.95996398454": 0.9731986577181208,
+        "3.0": 0.9911937919463087
+      },
+      "one_sigma_by_galaxy": {
+        "galaxy_balanced_mean": 0.8686083913764512,
+        "n_galaxies": 1005,
+        "bootstrap_95_interval": [
+          0.8609745190713102,
+          0.875764152570481
+        ]
+      }
+    },
+    "detected_line": {
+      "n_pixels": 67061,
+      "coverage": {
+        "1.0": 0.6852268829871311,
+        "1.95996398454": 0.8658833002788506,
+        "3.0": 0.9362520690117953
+      },
+      "one_sigma_by_galaxy": {
+        "galaxy_balanced_mean": 0.6884840534638095,
+        "n_galaxies": 785,
+        "bootstrap_95_interval": [
+          0.6809946144700919,
+          0.6959186551243824
+        ]
+      }
+    },
+    "other_pixels": {
+      "n_pixels": 5892939,
+      "coverage": {
+        "1.0": 0.8701780215271192,
+        "1.95996398454": 0.9744198947248564,
+        "3.0": 0.9918190227321206
+      },
+      "one_sigma_by_galaxy": {
+        "galaxy_balanced_mean": 0.8708945327131733,
+        "n_galaxies": 1005,
+        "bootstrap_95_interval": [
+          0.8631933593039851,
+          0.8781240019022076
+        ]
+      }
+    }
+  },
+  "unsupported_emission": {
+    "window_sigma_um": 0.005,
+    "emission_sum_threshold": 5.0,
+    "note": "Correlated/blended truth-centered windows; not a blind-search false-positive rate.",
+    "intrinsically_weak_proxy": {
+      "n_windows": 3859,
+      "n_drawn_above_threshold": 16,
+      "fraction_above_threshold": 0.004146151852811609,
+      "median_drawn_sum": 0.0
+    },
+    "present_but_snr_below_1": {
+      "n_windows": 3393,
+      "n_drawn_above_threshold": 750,
+      "fraction_above_threshold": 0.22104332449160036,
+      "median_drawn_sum": 1.0276631240409588,
+      "median_recovered_fraction": 0.10204251066677715
+    },
+    "present_but_snr_below_2": {
+      "n_windows": 4325,
+      "n_drawn_above_threshold": 1579,
+      "fraction_above_threshold": 0.3650867052023121,
+      "median_drawn_sum": 2.3036459971985592,
+      "median_recovered_fraction": 0.2186842374344906
+    }
+  },
+  "cache_config": {
+    "data": "ou2024_h10307_dataset.npz",
+    "sr1_ckpt": "sr1_ou2024_v6_independent",
+    "zhead_ckpt": "zhead_ou2024_roman_med3_rubin_y10_independent",
+    "sr2_ckpt": "sr2_ou2024_v5_rubin_y10_independent",
+    "phot_tier": "medium_rubin",
+    "eval_mag_err": 0.05,
+    "noise_seed": 0,
+    "batch_size": 64,
+    "delta_cap": 40.0,
+    "sigma_base_um": 0.005,
+    "z_topk": 3,
+    "zhead_use_spectrum": true,
+    "split_mode": "three_way",
+    "partition": "test",
+    "out": "outputs/independent_v2/pred_cache_rubin_y10.npz"
+  },
+  "redshift_uncertainty": {
+    "n": 2384,
+    "n_outside_grid": 0,
+    "central_bin_midpoint_coverage": {
+      "0.5": 0.9907718120805369,
+      "0.68": 0.9949664429530202,
+      "0.95": 0.9987416107382551,
+      "0.99": 0.9995805369127517
+    },
+    "central_uniform_bin_coverage": {
+      "0.5": 0.9903523489932886,
+      "0.68": 0.9941275167785235,
+      "0.95": 0.9987416107382551,
+      "0.99": 0.9995805369127517
+    },
+    "median_pdf_std": 0.03053046505837824,
+    "randomized_pit_histogram": [
+      3,
+      5,
+      4,
+      115,
+      951,
+      1130,
+      159,
+      4,
+      6,
+      7
+    ],
+    "mean_truth_bin_nll": 2.064013228310579,
+    "note": "Reports midpoint and uniform-within-bin central coverage; randomized PIT ignores truth positions within bins."
+  }
+}

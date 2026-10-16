@@ -1,0 +1,54 @@
+{
+  "sr1": {
+    "n_responses": 3432,
+    "n_sources": 1738,
+    "primary_median": 0.21701378305587446,
+    "fixed_median": 0.14892995602234074,
+    "by_snr": [
+      {
+        "bin": "marginal",
+        "n_responses": 1386,
+        "primary_median": 0.25450088291259265,
+        "fixed_median": 0.22336050519405132
+      },
+      {
+        "bin": "good",
+        "n_responses": 1385,
+        "primary_median": 0.16597390899570727,
+        "fixed_median": 0.12078026811553536
+      },
+      {
+        "bin": "strong",
+        "n_responses": 661,
+        "primary_median": 0.24242036456149557,
+        "fixed_median": 0.07533576944569197
+      }
+    ]
+  },
+  "sr2": {
+    "n_responses": 3464,
+    "n_sources": 1739,
+    "primary_median": 0.15579703502566988,
+    "fixed_median": 0.0963894651200608,
+    "by_snr": [
+      {
+        "bin": "marginal",
+        "n_responses": 1406,
+        "primary_median": 0.13529718891234624,
+        "fixed_median": 0.11105665067442724
+      },
+      {
+        "bin": "good",
+        "n_responses": 1395,
+        "primary_median": 0.128952087382286,
+        "fixed_median": 0.07262854853405726
+      },
+      {
+        "bin": "strong",
+        "n_responses": 663,
+        "primary_median": 0.2872529811609663,
+        "fixed_median": 0.1269813497641244
+      }
+    ]
+  }
+}

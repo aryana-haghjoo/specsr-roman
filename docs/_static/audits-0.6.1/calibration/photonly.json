@@ -1,0 +1,129 @@
+{
+  "cache": "pred_cache_photonly.npz",
+  "cache_sha256": "523e50989861067d0175524b9b8d40c5506c0b704b2d22ef09a2e65ae88f84dd",
+  "data": "ou2024_h10307_dataset.npz",
+  "evaluation_status": "three_way test",
+  "spectral_uncertainty": {
+    "all": {
+      "n_pixels": 5960000,
+      "coverage": {
+        "1.0": 0.8174,
+        "1.95996398454": 0.9608652684563759,
+        "3.0": 0.9883115771812081
+      },
+      "one_sigma_by_galaxy": {
+        "galaxy_balanced_mean": 0.8177305804311774,
+        "n_galaxies": 1005,
+        "bootstrap_95_interval": [
+          0.8094230845771145,
+          0.8256216641791044
+        ]
+      }
+    },
+    "detected_line": {
+      "n_pixels": 67061,
+      "coverage": {
+        "1.0": 0.7315727472003102,
+        "1.95996398454": 0.9036548813766571,
+        "3.0": 0.963481009826874
+      },
+      "one_sigma_by_galaxy": {
+        "galaxy_balanced_mean": 0.736670144049611,
+        "n_galaxies": 785,
+        "bootstrap_95_interval": [
+          0.7270540004409958,
+          0.7466345936915648
+        ]
+      }
+    },
+    "other_pixels": {
+      "n_pixels": 5892939,
+      "coverage": {
+        "1.0": 0.8183767047308652,
+        "1.95996398454": 0.9615163163915323,
+        "3.0": 0.9885941463164645
+      },
+      "one_sigma_by_galaxy": {
+        "galaxy_balanced_mean": 0.8188754297266339,
+        "n_galaxies": 1005,
+        "bootstrap_95_interval": [
+          0.810457637640773,
+          0.8268048649843881
+        ]
+      }
+    }
+  },
+  "unsupported_emission": {
+    "window_sigma_um": 0.005,
+    "emission_sum_threshold": 5.0,
+    "note": "Correlated/blended truth-centered windows; not a blind-search false-positive rate.",
+    "intrinsically_weak_proxy": {
+      "n_windows": 3859,
+      "n_drawn_above_threshold": 24,
+      "fraction_above_threshold": 0.006219227779217414,
+      "median_drawn_sum": 0.0
+    },
+    "present_but_snr_below_1": {
+      "n_windows": 3393,
+      "n_drawn_above_threshold": 805,
+      "fraction_above_threshold": 0.23725316828765106,
+      "median_drawn_sum": 0.8063877622497022,
+      "median_recovered_fraction": 0.07830290359213576
+    },
+    "present_but_snr_below_2": {
+      "n_windows": 4325,
+      "n_drawn_above_threshold": 1629,
+      "fraction_above_threshold": 0.3766473988439306,
+      "median_drawn_sum": 1.709689454943255,
+      "median_recovered_fraction": 0.15220602661046354
+    }
+  },
+  "cache_config": {
+    "data": "ou2024_h10307_dataset.npz",
+    "sr1_ckpt": "sr1_ou2024_v6_independent",
+    "zhead_ckpt": "zhead_ou2024_photonly_rubin_y10_independent",
+    "sr2_ckpt": "sr2_ou2024_v5_photonly_rubin_y10_independent",
+    "phot_tier": "medium_rubin",
+    "eval_mag_err": 0.05,
+    "noise_seed": 0,
+    "batch_size": 64,
+    "delta_cap": 40.0,
+    "sigma_base_um": 0.005,
+    "z_topk": 3,
+    "zhead_use_spectrum": false,
+    "split_mode": "three_way",
+    "partition": "test",
+    "out": "outputs/independent_v2/pred_cache_photonly.npz"
+  },
+  "redshift_uncertainty": {
+    "n": 2384,
+    "n_outside_grid": 0,
+    "central_bin_midpoint_coverage": {
+      "0.5": 0.7088926174496645,
+      "0.68": 0.863255033557047,
+      "0.95": 0.9949664429530202,
+      "0.99": 0.9995805369127517
+    },
+    "central_uniform_bin_coverage": {
+      "0.5": 0.7168624161073825,
+      "0.68": 0.8670302013422819,
+      "0.95": 0.9949664429530202,
+      "0.99": 0.9991610738255033
+    },
+    "median_pdf_std": 0.0388469728097307,
+    "randomized_pit_histogram": [
+      61,
+      150,
+      222,
+      315,
+      364,
+      388,
+      356,
+      271,
+      168,
+      89
+    ],
+    "mean_truth_bin_nll": 2.5280924281913553,
+    "note": "Reports midpoint and uniform-within-bin central coverage; randomized PIT ignores truth positions within bins."
+  }
+}

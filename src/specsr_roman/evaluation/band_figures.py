@@ -639,8 +639,7 @@ def plot_response_bands(bands=BANDS, outdir: str | None = None,
                         response_dir: str | None = None):
     """Response exponent per recoverability bin, the configurations side by side.
 
-    One panel: the configurations give the same exponents, and a panel for
-    each would be three points in an empty frame, four times.
+    One panel compares the configurations with a common response convention.
     """
     paths = [(b, os.path.join(response_dir, f"response_{b.key}.json")
               if response_dir else b.response) for b in bands]
@@ -678,9 +677,9 @@ def plot_response_bands(bands=BANDS, outdir: str | None = None,
         ax.set_ylim(-0.15, 1.12)
         ax.set_ylabel(r"Response exponent $r$")
         ax.set_xlabel("Line recoverability")
-        ax.text(0.985, 1.02, "follows the input", fontsize=9, color="0.3",
+        ax.text(0.985, 1.02, "proportional response", fontsize=9, color="0.3",
                 ha="right", transform=ax.get_yaxis_transform())
-        ax.text(0.985, -0.10, "ignores the input", fontsize=9, color="0.3",
+        ax.text(0.985, -0.10, "no output response", fontsize=9, color="0.3",
                 ha="right", transform=ax.get_yaxis_transform())
         ax.legend(frameon=False, fontsize=9.5, loc="upper left",
                   bbox_to_anchor=(0.0, 0.93))

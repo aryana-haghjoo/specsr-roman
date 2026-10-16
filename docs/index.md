@@ -28,6 +28,7 @@ guides/data
 guides/training
 guides/evaluation
 guides/release-0.6.0
+guides/audits-0.6.1
 ```
 
 ```{toctree}

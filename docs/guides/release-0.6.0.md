@@ -51,3 +51,6 @@ and [models](https://huggingface.co/aryana-haghjoo/roman-spectral-superresolutio
 Response and uncertainty audits from earlier weights do not validate this
 release. Line fluxes and ratios should not yet be treated as calibrated
 measurements; independent response and uncertainty calibration remain open.
+
+The pending audits described above were completed in the
+[0.6.1 follow-up](audits-0.6.1.md), using the same weights and test caches.

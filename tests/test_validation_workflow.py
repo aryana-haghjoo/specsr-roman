@@ -151,3 +151,17 @@ def test_identity_pipeline_tracks_physical_flux_with_lr_restoration():
     assert response == pytest.approx(1)
     fixed = restore_prediction(xp, (mp, stdp), (m, std), "target_fixed")
     assert _line_flux(fixed, seg, wave) / _line_flux(a, seg, wave) == pytest.approx(1)
+
+
+def test_response_bootstrap_keeps_visits_and_factors_within_galaxies(monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'scripts'))
+    from summarize_release_audits import grouped_median_interval
+
+    # One galaxy, two visits and two perturbations: resampling that galaxy
+    # cannot alter its visit/factor-pooled median. IID row resampling would.
+    result = grouped_median_interval([0.0, 0.1, 0.9, 1.0], [7, 7, 7, 7], draws=100)
+    assert result['n_galaxies'] == 1
+    assert result['median'] == 0.5
+    assert result['bootstrap_95_interval'] == [0.5, 0.5]

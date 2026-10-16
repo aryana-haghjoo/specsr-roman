@@ -89,7 +89,7 @@ specsr-roman evaluate figures --outdir figures/
 
 ## Results
 
-Version 0.6.0 uses the independently trained chain
+Version 0.6.1 retains the independently trained v0.6.0 chain
 `sr1_ou2024_v6_independent → zhead_ou2024_roman_med3_noisy_independent →
 sr2_ou2024_v5_romanonly_independent`.
 
@@ -137,9 +137,16 @@ integrated line S/N in the grism. Lines below S/N 2 are excluded.
 Frozen test caches, exact metrics, the split record and weight provenance are
 available with the [dataset](https://huggingface.co/datasets/aryana-haghjoo/romansr-data)
 and [models](https://huggingface.co/aryana-haghjoo/roman-spectral-superresolution).
-Response and uncertainty audits from earlier weights do not validate this
-release. Line fluxes and ratios should not yet be treated as calibrated
-measurements; independent response and uncertainty calibration remain open.
+Version 0.6.1 completes the audits of these weights. The Roman SR2 deployed
+line-response exponent is **0.098** (galaxy-grouped 95% bootstrap
+interval 0.089–0.106; 0.255 for strong lines), compared with 1 for
+proportional recovery. The nominal central 68% redshift interval covers
+**98.7%** of test truths. Spectral coverage is 75.5% within 1σ overall
+and 92.1% within 1.96σ in detected-line regions.
+These are diagnostics; no recalibration was fitted on the test data.
+[Full audits, normalization controls and records](https://aryana-haghjoo.github.io/specsr-roman/guides/audits-0.6.1.html)
+document the remaining limitations. Output line fluxes and ratios are not yet
+calibrated measurements.
 
 ---
 
@@ -252,7 +259,7 @@ corrupts the heap when thousands of sources go through one process — and cache
 its result, so a crash costs one SCA rather than the run.
 
 **Split by object, never by row.** The same galaxy appears in many visits as
-independent noise realisations. `specsr_roman.data.get_or_make_group_split` keys
+independent noise realisations. `specsr_roman.data.splits.get_or_make_three_way_split` keys
 membership on a hash of the object id, which also makes it stable under dataset
 growth: adding SCAs never moves an existing galaxy across the boundary.
 
@@ -263,10 +270,13 @@ growth: adding SCAs never moves an existing galaxy across the boundary.
 Stated plainly, because they bound what the numbers mean.
 
 - **Results are on the Diffsky manifold.** Targets use simulated line physics.
-  Recovery can reflect the training prior. Response-audit results from older
-  weights do not establish the response of this release.
-- **Uncertainties require calibration.** Keep the full P(z), but do not assume
-  its intervals or the spectral error bars have nominal frequentist coverage.
+  Recovery can reflect the training prior. The new deployed-response audit
+  gives Roman SR2 a median exponent of 0.098; proportional recovery would be 1.
+- **Uncertainties require calibration.** The nominal 68% P(z) interval covers
+  98.7% of test truths; spectral line-region tails under-cover at 1.96σ.
+- **The test is reserved from new checkpoint selection.** These galaxies
+  appeared in historical validation during hyperparameter development;
+  a fully prospective sample and real-sky validation remain necessary.
 - **Trained on simulations, not sky.** Real Roman spectra will differ. Domain
   adaptation via cross-instrument overlaps (DESI/PFS/JWST) is the intended
   route once real data exists.
@@ -277,9 +287,9 @@ Stated plainly, because they bound what the numbers mean.
 - **The sample is selected on the true line flux.** A survey has to estimate
   that flux from the data. In this simulation it also follows continuum
   brightness closely, so the sample lacks faint galaxies with strong lines.
-- **The remaining outliers are physics, not a bug to be tuned away.** Where
-  the line is too faint to see, the identification rests on three colours;
-  they settle most cases and cannot settle all.
+- **Residual line-identification aliases remain.** Weak lines may require
+  photometric disambiguation. These experiments do not establish an
+  irreducible outlier rate.
 
 ---
 

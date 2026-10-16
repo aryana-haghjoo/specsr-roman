@@ -137,7 +137,7 @@ The training targets are simulated SEDs. A model can score well on every
 reconstruction metric by learning that manifold rather than measuring
 anything, and no reconstruction metric distinguishes the two.
 
-This one does. Scale a recovered line in the *truth* by a factor `f` — off the
+This probes off-manifold sensitivity. Scale a recovered line in the *truth* by a factor `f` — off the
 manifold — forward-model the difference onto the observed spectrum, re-run, and
 measure
 
@@ -149,12 +149,21 @@ line regardless.
 **Read it carefully.** Where the injected change is genuinely below the noise,
 low `r` is the *correct* behaviour — falling back on the prior is what a
 calibrated model should do when the data says nothing. Bin by detectability and
-judge `r` only where the information is present. Aggregate `r` is dominated by
-undetected lines and understates a good model.
+judge `r` only where the information is present. Aggregate `r` mixes marginal and strong detections; inspect the injected-change
+S/N breakdown as well as the original-line bins.
 
-Earlier response numbers describe the v0.5.0 weights and their validation
-partition. They are not measurements of the v0.6.0 independent chain.
-Pass the new checkpoint names and `--split-mode three_way --partition test`
-to audit that chain. Use `--output-scale legacy_lr` for deployed restoration
-or `--output-scale target_fixed` for the fixed-target normalization control;
-report the convention with every result.
+Version 0.6.1 completes the audits of these weights. The Roman SR2 deployed
+line-response exponent is **0.098** (galaxy-grouped 95% bootstrap
+interval 0.089–0.106; 0.255 for strong lines), compared with 1 for
+proportional recovery. The nominal central 68% redshift interval covers
+**98.7%** of test truths. Spectral coverage is 75.5% within 1σ overall
+and 92.1% within 1.96σ in detected-line regions.
+These are diagnostics; no recalibration was fitted on the test data.
+[Full audits, normalization controls and records](https://aryana-haghjoo.github.io/specsr-roman/guides/audits-0.6.1.html)
+document the remaining limitations. Output line fluxes and ratios are not yet
+calibrated measurements.
+
+Use `--split-mode three_way --partition test` with the released checkpoint
+names. Deployed `legacy_lr` restoration is the primary physical response.
+The `target_fixed` convention is a normalized-output control, not a corrected
+physical response or a fraction of information attributable to a prior.

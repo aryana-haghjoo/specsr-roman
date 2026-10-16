@@ -3,6 +3,21 @@
 Notable changes to `specsr-roman`. Versions follow [semantic
 versioning](https://semver.org/); until 1.0 the public API may still move.
 
+## [0.6.1] — 2026-10-16
+
+Completes the reserved-test response and uncertainty audits of the unchanged
+v0.6.0 weights. All four configurations have deployed-response and fixed-target
+controls, per-response records, galaxy-grouped bootstrap intervals, uncertainty
+coverage and unsupported-emission proxies. Roman SR2's median deployed response
+is 0.098 (95% interval 0.089–0.106); its nominal central 68% P(z) interval covers
+98.7% of test truths. No recalibration was fitted on the test partition.
+
+The release includes portable audit runners and their exact numerical artifacts.
+Documentation distinguishes normalization controls from physical response and
+discloses historical development exposure of the reserved galaxies. Response
+plot labels describe the selected output convention without attributing a
+numerical fraction to a learned prior.
+
 ## [0.6.0] — 2026-10-16
 
 All nine models were trained from scratch with galaxy-grouped training,
