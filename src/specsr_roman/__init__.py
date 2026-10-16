@@ -8,8 +8,9 @@ derived from them.
 
 This package super-resolves those spectra in three stages, and is built around
 one constraint that shapes every design decision in it: **a model that invents
-plausible emission lines is worse than useless in a survey.** So the pipeline
-reports what the data can support and declines to draw what it cannot.
+plausible emission lines is worse than useless in a survey.** Recoverability-weighted
+losses discourage unsupported emission, but they do not guarantee that every
+predicted feature is supported or that its uncertainty is calibrated.
 
     from specsr_roman import RomanPipeline
 
@@ -30,7 +31,7 @@ test that keeps the reported numbers honest.
 
 from __future__ import annotations
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from .config import SR1Config, SR2Config, ZHeadConfig
 from .grids import MAX_PHOT_BANDS, PHOT_BANDS, ROMAN_MEDIUM_BANDS, WAVE_HR, WAVE_LR

@@ -116,11 +116,9 @@ photometry enters standardised with statistics baked into the checkpoint,
 "drop a band" is exactly "feed it its training mean" — so this needs no
 retraining.
 
-Removing all three colours takes the published head from NMAD 0.0014 with
-0.8 % of outliers to **0.0013 with 2.9 %**: the colours do not sharpen the
-redshift, they remove outliers. The same run sweeps the photometric noise:
-even with *noiseless* colours the outlier rate is 0.8 % rather than zero, which
-is what a head reading its spectrum should look like.
+The v0.6.0 reserved-test Roman chain has NMAD 0.00133 and 0.67% outliers.
+The older release's colour-ablation numbers describe older weights. Re-run
+ablations on the appropriate three-way partition before quoting new numbers.
 
 :::{warning}
 Read the no-photometry row as an upper bound, not as the information floor.
@@ -154,10 +152,9 @@ calibrated model should do when the data says nothing. Bin by detectability and
 judge `r` only where the information is present. Aggregate `r` is dominated by
 undetected lines and understates a good model.
 
-On the 3,552 held-out spectra with a detected line (S/N of 2 or more), the
-published SR1 scores r ≈ 0.22 and the full pipeline r ≈ 0.17. By recoverability
-bin (marginal, good, strong) SR1 gives 0.27, 0.21, 0.12 and the full pipeline
-0.14, 0.16, 0.24: SR2 adds flux to faint lines that is mostly the expected
-flux, and brings the output closer to the input where the line is strong. Pass `--zhead` and `--sr2` to audit the
-full pipeline; the command writes `outputs/prior_dominance.json` and
-`outputs/figures/response.png`.
+Earlier response numbers describe the v0.5.0 weights and their validation
+partition. They are not measurements of the v0.6.0 independent chain.
+Pass the new checkpoint names and `--split-mode three_way --partition test`
+to audit that chain. Use `--output-scale legacy_lr` for deployed restoration
+or `--output-scale target_fixed` for the fixed-target normalization control;
+report the convention with every result.

@@ -3,7 +3,37 @@
 Notable changes to `specsr-roman`. Versions follow [semantic
 versioning](https://semver.org/); until 1.0 the public API may still move.
 
-## [Unreleased]
+## [0.6.0] — 2026-10-16
+
+All nine models were trained from scratch with galaxy-grouped training,
+validation and reserved test partitions. The default pipeline uses new
+`_independent` checkpoint names; previous Hub weights remain available.
+On 2,384 reserved test spectra the Roman chain has NMAD 0.00133 and 0.67%
+catastrophic outliers. Roman SR2 line recovery is 0.90 / 0.94 / 0.89 for
+marginal / good / strong detections. Earlier 4,711-spectrum results are
+checkpoint-selection validation results, not an independent test.
+
+### Added
+
+- Galaxy-grouped three-way training/validation/test partitions, upstream
+  checkpoint provenance checks, and prediction-cache partition metadata.
+- Redshift and spectral uncertainty-coverage diagnostics, galaxy-grouped
+  bootstrap summaries, and truth-centered unsupported-emission diagnostics.
+- Reproducible response-audit runners, normalization controls, release
+  manifests, and an isolated fresh-training workflow with detached execution.
+
+### Fixed
+
+- Response-audit eligibility now compares target and predicted line integrals
+  in consistent units. Deployed LR restoration and fixed-target restoration
+  are explicitly separate conventions, with per-response records.
+
+### Changed
+
+- The manuscript identifies checkpoint-selection results as validation,
+  reports repeated response audits and uncertainty limitations, and pins the
+  existing v0.5.0 software archive. The public software and model release
+  reports the new reserved-test results separately.
 
 ## [0.5.0] — 2026-10-12
 

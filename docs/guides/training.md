@@ -18,7 +18,7 @@ summary = train_sr1(load_config(SR1Config, "configs/sr1.yaml"))
 ```
 
 The shipped configs *are* the published chain — `configs/sr1.yaml` produces
-`sr1_ou2024_v6` — and the dataclass defaults match them. Any field can be
+`sr1_ou2024_v6_independent` — and use `split_mode: three_way`. Any field can be
 overridden (`--epochs 50`, `--no-augment`); an unknown key raises rather than
 silently doing nothing.
 
@@ -73,10 +73,9 @@ SR2 that draws nothing; a line-region MSE ratio is diluted across 98 windows
 and picks the timidest epoch available.
 
 :::{note}
-**SR2's best epoch is 2.** That is the design working, not a truncated run:
-hallucination amplitude climbs from 0.47 to 0.60 by epoch 150 while
-recoverable amplitude barely moves. The goal deliberately selects the sharpest
-epoch before hallucination runs away.
+**The Roman SR2 best checkpoint is epoch 8 of 150.** Selection uses only
+the 2,327-spectrum validation partition; the 2,384-spectrum test partition
+is reserved until all nine models are frozen.
 :::
 
 ## Logging

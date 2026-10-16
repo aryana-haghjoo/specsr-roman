@@ -18,7 +18,8 @@ import numpy as np
 from ..lines import count_strong_lines
 
 __all__ = ["hash_file", "get_or_make_group_split", "get_or_make_split",
-           "filter_split_min_lines", "default_split_dir"]
+           "filter_split_min_lines", "default_split_dir", "get_or_make_three_way_split",
+           "training_split", "evaluation_split"]
 
 
 def hash_file(path: str) -> str:
@@ -125,3 +126,59 @@ def filter_split_min_lines(train_idx, test_idx, z_all, wave_hi_aa,
         print(f"min_strong_lines={min_lines}: train {len(tr)}/{len(train_idx)}, "
               f"test {len(te)}/{len(test_idx)} rows kept")
     return tr, te
+
+
+def get_or_make_three_way_split(dataset_path: str, ids, split_dir: str | None = None,
+                                verbose: bool = True):
+    """Stable 80/10/10 galaxy split; new runs reserve the last 10% from selection.
+
+    Retains the legacy training membership (<800). Legacy checkpoints are not
+    eligible for this test: their selection already used both remaining bins.
+    A distinct record name prevents collisions with the legacy split manifest.
+    """
+    ids = np.asarray(ids)
+    if ids.ndim != 1 or not np.issubdtype(ids.dtype, np.integer):
+        raise ValueError("three-way splitting requires one integer galaxy ID per row")
+    h = np.array([int(hashlib.md5(str(int(i)).encode()).hexdigest()[:8], 16) % 1000
+                  for i in ids])
+    parts = tuple(np.flatnonzero(m) for m in (h < 800, (h >= 800) & (h < 900), h >= 900))
+    if any(len(part) == 0 for part in parts):
+        raise ValueError("three-way split has an empty partition")
+    split_dir = split_dir or default_split_dir(dataset_path)
+    os.makedirs(split_dir, exist_ok=True)
+    ds_hash = hash_file(dataset_path)
+    id_hash = hashlib.sha256(ids.astype('<i8').tobytes()).hexdigest()[:16]
+    path = os.path.join(split_dir, f"three_way_v1_{ds_hash}_{id_hash}.npz")
+    if not os.path.exists(path):
+        np.savez(path, train_idx=parts[0], validation_idx=parts[1], test_idx=parts[2],
+                 dataset_hash=ds_hash, scheme="three_way_v1")
+    if verbose:
+        print("three-way train/validation/test rows: " + "/".join(str(len(p)) for p in parts))
+    return (*parts, path)
+
+
+def training_split(dataset_path: str, ids, n_rows: int, mode: str = "legacy"):
+    """Return only training and selection rows; never return reserved test rows."""
+    if mode == "three_way":
+        if ids is None:
+            raise ValueError("three-way splitting requires galaxy IDs")
+        train, validation, _, path = get_or_make_three_way_split(dataset_path, ids)
+        return train, validation, path
+    if mode != "legacy":
+        raise ValueError(f"unknown split mode: {mode}")
+    if ids is not None:
+        return get_or_make_group_split(dataset_path, ids)
+    return get_or_make_split(dataset_path, n_rows)
+
+
+def evaluation_split(dataset_path: str, ids, mode: str = "legacy",
+                     partition: str = "validation"):
+    """Return training rows, requested evaluation rows and the split record."""
+    if mode == "legacy":
+        if partition != "validation":
+            raise ValueError("legacy checkpoints have no independent test partition")
+        return get_or_make_group_split(dataset_path, ids)
+    if mode != "three_way" or partition not in ("validation", "test"):
+        raise ValueError("use mode=three_way and partition=validation or test")
+    tr, va, te, path = get_or_make_three_way_split(dataset_path, ids)
+    return tr, va if partition == "validation" else te, path

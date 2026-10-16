@@ -2,8 +2,8 @@
 
 A checkpoint may be named three ways, and every entry point accepts all three:
 
-* a local path --- ``runs/sr1/sr1_ou2024_v6_best.pth``;
-* a bare run name --- ``sr1_ou2024_v6``, fetched from the Hugging Face Hub;
+* a local path --- ``runs/sr1/sr1_ou2024_v6_independent_best.pth``;
+* a bare run name --- ``sr1_ou2024_v6_independent``, fetched from the Hugging Face Hub;
 * a fully qualified hub reference --- ``org/repo:run_name``.
 
 Weights are downloaded once into the standard Hugging Face cache and reused,
@@ -29,9 +29,9 @@ DEFAULT_HUB_REPO = os.environ.get(
 #: The three checkpoints that make up the published pipeline. Anything else on
 #: the Hub is a superseded generation kept for provenance.
 CANONICAL_CHAIN = {
-    "sr1": "sr1_ou2024_v6",
-    "zhead": "zhead_ou2024_roman_med3_noisy",
-    "sr2": "sr2_ou2024_v5_romanonly",
+    "sr1": "sr1_ou2024_v6_independent",
+    "zhead": "zhead_ou2024_roman_med3_noisy_independent",
+    "sr2": "sr2_ou2024_v5_romanonly_independent",
 }
 
 
@@ -55,8 +55,15 @@ def resolve_checkpoint(spec: str, repo_id: str | None = None) -> Path:
             "install it with `pip install specsr-roman[hub]` or pass a local path"
         ) from exc
 
-    return Path(hf_hub_download(repo_id=repo_id,
-                                filename=f"checkpoints/{run_name}/model.pth"))
+    path = Path(hf_hub_download(repo_id=repo_id,
+                               filename=f"checkpoints/{run_name}/model.pth"))
+    if run_name.endswith("_independent"):
+        # Keep provenance beside the weights, pinned to the same Hub snapshot.
+        # Three-way training/evaluation validates this sidecar before proceeding.
+        hf_hub_download(repo_id=repo_id,
+                        filename=f"checkpoints/{run_name}/model.provenance.json",
+                        revision=path.parents[2].name)
+    return path
 
 
 def checkpoint_card(spec: str, repo_id: str | None = None) -> dict[str, Any] | None:
@@ -145,6 +152,11 @@ def push_checkpoint(pth_path: str | Path, run_name: str,
     api.upload_file(path_or_fileobj=str(pth_path),
                     path_in_repo=f"checkpoints/{run_name}/model.pth",
                     repo_id=repo_id)
+    provenance = Path(pth_path).with_suffix(".provenance.json")
+    if provenance.exists():
+        api.upload_file(path_or_fileobj=str(provenance),
+                        path_in_repo=f"checkpoints/{run_name}/model.provenance.json",
+                        repo_id=repo_id)
     api.upload_file(
         path_or_fileobj=json.dumps(card, indent=2, default=str).encode(),
         path_in_repo=f"checkpoints/{run_name}/card.json",

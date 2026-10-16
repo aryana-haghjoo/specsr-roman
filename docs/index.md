@@ -27,6 +27,7 @@ guides/quickstart
 guides/data
 guides/training
 guides/evaluation
+guides/release-0.6.0
 ```
 
 ```{toctree}

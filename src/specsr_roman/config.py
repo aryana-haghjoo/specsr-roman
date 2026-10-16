@@ -38,6 +38,7 @@ class SR1Config:
     # data
     data: str = "data/dataset/ou2024_h10307_dataset.npz"
     augment: bool = False          # see specsr_roman.data.augment for why not
+    split_mode: str = "three_way"  # three_way reserves an untouched 10% test set
     min_strong_lines: int = 0
 
     # architecture (JWST sweep)
@@ -113,7 +114,8 @@ class ZHeadConfig:
 
     # data
     data: str = "data/dataset/ou2024_h10307_dataset.npz"
-    sr1_ckpt: str = "sr1_ou2024_v6"
+    sr1_ckpt: str = "sr1_ou2024_v6_independent"
+    split_mode: str = "three_way"  # three_way reserves an untouched 10% test set
     min_strong_lines: int = 0
 
     # architecture
@@ -168,9 +170,10 @@ class SR2Config:
 
     # data + upstream stages
     data: str = "data/dataset/ou2024_h10307_dataset.npz"
-    sr1_ckpt: str = "sr1_ou2024_v6"
-    zhead_ckpt: str = "zhead_ou2024_roman_med3_noisy"
+    sr1_ckpt: str = "sr1_ou2024_v6_independent"
+    zhead_ckpt: str = "zhead_ou2024_roman_med3_noisy_independent"
     phot_tier: str | None = "medium"   # must match how the ZHead was trained
+    split_mode: str = "three_way"  # three_way reserves an untouched 10% test set
     min_strong_lines: int = 0
     augment: bool = False
 

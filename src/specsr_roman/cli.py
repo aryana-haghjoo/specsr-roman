@@ -133,6 +133,10 @@ def build_parser() -> argparse.ArgumentParser:
     ca.add_argument("--phot-tier", default=None,
                     help="band set the ZHead was trained on (default: medium)")
 
+    for parser in (ca,):
+        parser.add_argument("--split-mode", choices=("legacy", "three_way"), default="three_way")
+        parser.add_argument("--partition", choices=("validation", "test"), default="test")
+
     me = ev_sub.add_parser("metrics", help="redshift + line-recovery summary")
     me.add_argument("--cache", default="outputs/pred_cache.npz")
     me.add_argument("--json", default=None, help="also write metrics as JSON")
@@ -166,6 +170,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="SR1 checkpoint (default: the published name, which "
                          "resolves to the Hub copy)")
     ab.add_argument("--zhead", default=None, help="Roman three-band ZHead")
+    ab.add_argument("--split-mode", choices=("legacy", "three_way"), default="three_way")
+    ab.add_argument("--partition", choices=("validation", "test"), default="test")
 
     pd = ev_sub.add_parser("prior", help="inverse-crime / prior-dominance audit")
     pd.add_argument("--data", default="data/dataset/ou2024_h10307_dataset.npz")
@@ -178,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
     pd.add_argument("--max-sources", type=int, default=100000)
     pd.add_argument("--json", default="outputs/prior_dominance.json")
     pd.add_argument("--outdir", default="outputs/figures")
+    pd.add_argument("--output-scale", choices=("target_fixed", "legacy_lr"), default="legacy_lr")
+    pd.add_argument("--split-mode", choices=("legacy", "three_way"), default="three_way")
+    pd.add_argument("--partition", choices=("validation", "test"), default="test")
 
     sub.add_parser("info", help="environment and canonical checkpoints")
     return p
@@ -308,7 +317,8 @@ def _cmd_evaluate(args) -> int:
 
     if args.what == "cache":
         from .evaluation import CacheConfig, build_prediction_cache
-        kwargs = {"data": args.data, "out": args.out}
+        kwargs = {"data": args.data, "out": args.out,
+                  "split_mode": args.split_mode, "partition": args.partition}
         for key, val in (("sr1_ckpt", args.sr1), ("zhead_ckpt", args.zhead),
                          ("sr2_ckpt", args.sr2),
                          ("phot_tier", args.phot_tier)):
@@ -373,12 +383,14 @@ def _cmd_evaluate(args) -> int:
         ckpts = {k: v for k, v in (("sr1_ckpt", args.sr1),
                                    ("zhead_ckpt", args.zhead)) if v}
         run_ablation(AblationConfig(data=args.data, out_dir=args.out_dir,
-                                    **ckpts))
+                                    split_mode=args.split_mode, partition=args.partition, **ckpts))
         return 0
 
     if args.what == "prior":
         from .evaluation.prior_dominance import PriorDominanceConfig, run_prior_dominance
-        kwargs = {"data": args.data, "max_sources": args.max_sources}
+        kwargs = {"data": args.data, "max_sources": args.max_sources,
+                  "split_mode": args.split_mode, "partition": args.partition,
+                  "output_scale": args.output_scale}
         if args.sr1:
             kwargs["sr1_ckpt"] = args.sr1
         if args.zhead and args.sr2:

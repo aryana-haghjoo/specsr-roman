@@ -1,22 +1,15 @@
-# SR2 on the one-year Rubin head: configs/sr2_rubin_y10.yaml with the redshift
-# coming from `zhead_ou2024_roman_med3_rubin_y1`. Nothing else differs.
-#
-#   specsr-roman train sr2 --config configs/sr2_rubin_y1.yaml
 data: data/dataset/ou2024_h10307_dataset.npz
-sr1_ckpt: sr1_ou2024_v6
-zhead_ckpt: zhead_ou2024_roman_med3_rubin_y1
+sr1_ckpt: sr1_ou2024_v6_independent
+zhead_ckpt: zhead_ou2024_roman_med3_rubin_y1_independent
 phot_tier: medium_rubin
 epochs: 150
-
 batch_size: 32
-lr: 1.0e-4
-weight_decay: 2.0e-5
+lr: 0.0001
+weight_decay: 2.0e-05
 grad_clip: 0.5
-
 delta_cap: 40.0
 sigma_base_um: 0.005
 z_topk: 3
-
 lam_hp_in: 3.0
 lam_hp_out: 0.3
 hp_k: 51
@@ -27,9 +20,12 @@ hallu_snr0: 1.0
 lam_presence: 0.3
 presence_thresh: 3.0
 label_sigma: 0.03
-
 lam_z: 0.0
 lam_z_warmup: 5
 zhead_finetune: true
 zhead_lr_mult: 0.1
-out_prefix: sr2_ou2024_v5_rubin_y1
+out_prefix: sr2_ou2024_v5_rubin_y1_independent
+split_mode: three_way
+out_dir: runs/sr2
+wandb_mode: disabled
+push_to_hub: false

@@ -30,7 +30,7 @@ path = hf_hub_download("aryana-haghjoo/romansr-data",
 ```
 
 Same schema, plus a `source_row` column recording where each row came from in
-the full file. It is drawn from the **held-out side** of the canonical split
+the full file. It is drawn from the **reserved test partition** of the canonical split
 and sampled uniformly within it — so out-of-sample metrics computed on it are
 honest, and the mix of recoverable and undetectable lines is the population's
 own rather than a flattering selection. Rebuild it with
@@ -62,8 +62,8 @@ independent noise realisations; a row-wise split puts one realisation in train
 and another in test and measures memorisation.
 
 ```python
-from specsr_roman.data import get_or_make_group_split
-train_idx, test_idx, _ = get_or_make_group_split(path, data["ids"])
+from specsr_roman.data.splits import get_or_make_three_way_split
+train_idx, val_idx, test_idx, _ = get_or_make_three_way_split(path, data["ids"])
 ```
 
 Membership is a pure hash of the object id, which buys two things: every stage

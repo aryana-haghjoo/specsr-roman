@@ -15,8 +15,7 @@ from ..config import SR1Config, to_dict
 from ..data import (
     RomanFixedGridDataset,
     filter_split_min_lines,
-    get_or_make_group_split,
-    get_or_make_split,
+    training_split,
 )
 from ..lines import SR1_LINES_AA
 from ..models import SuperRes1D, build_param_groups
@@ -28,8 +27,10 @@ from .common import (
     log_example_spectrum,
     log_residual_histograms,
     pick_device,
+    require_split_provenance,
     set_seed,
     wandb_log,
+    write_split_provenance,
 )
 from .losses import line_flux_loss_weighted, line_hallucination_loss, loss_deblend_gated
 
@@ -61,6 +62,8 @@ def train(cfg: SR1Config) -> dict:
     device = pick_device()
     out_dir = ensure_dir(cfg.out_dir)
     dataset_path = os.path.abspath(cfg.data)
+    if cfg.init_checkpoint:
+        require_split_provenance(cfg.init_checkpoint, dataset_path, cfg.split_mode)
 
     run = init_wandb(cfg.wandb_project,
                      cfg.run_name or cfg.out_prefix,
@@ -71,12 +74,8 @@ def train(cfg: SR1Config) -> dict:
     # Validation always sees unaugmented data; a second, augmented instance
     # feeds the train split when requested.
     full_dataset = RomanFixedGridDataset(dataset_path)
-    if full_dataset.ids is not None:
-        train_idx, test_idx, split_path = get_or_make_group_split(
-            dataset_path, full_dataset.ids)
-    else:
-        train_idx, test_idx, split_path = get_or_make_split(
-            dataset_path, len(full_dataset))
+    train_idx, test_idx, split_path = training_split(
+        dataset_path, full_dataset.ids, len(full_dataset), cfg.split_mode)
     train_idx, test_idx = filter_split_min_lines(
         train_idx, test_idx, full_dataset.z.numpy(), full_dataset.wave_hi,
         cfg.min_strong_lines)
@@ -243,13 +242,15 @@ def train(cfg: SR1Config) -> dict:
             print(f"  saved best -> {best_path} (monitor {best_mon:.6f})", flush=True)
 
     summary = {"best_monitor": best_mon, "best_checkpoint": str(best_path),
-               "n_train": len(train_idx), "n_test": len(test_idx)}
+               "n_train": len(train_idx),
+               ("n_validation" if cfg.split_mode == "three_way" else "n_test"): len(test_idx)}
 
     if cfg.export_predictions:
         summary["predictions"] = str(_export_predictions(
             model, test_loader, test_idx, out_dir, cfg, device))
     torch.save(model.state_dict(), out_dir / f"{cfg.out_prefix}_final.pth")
 
+    write_split_provenance(best_path, dataset_path, cfg, split_path)
     if cfg.push_to_hub:
         try:
             push_checkpoint(best_path, cfg.run_name or cfg.out_prefix,
@@ -262,7 +263,8 @@ def train(cfg: SR1Config) -> dict:
     log_checkpoint_artifact(
         run, best_path, cfg.run_name or cfg.out_prefix,
         {**summary, **to_dict(cfg), "dataset": dataset_path,
-         "train_rows": len(train_idx), "test_rows": len(test_idx)},
+         "train_rows": len(train_idx),
+         ("validation_rows" if cfg.split_mode == "three_way" else "test_rows"): len(test_idx)},
         files=[split_path])
     finish_wandb(run)
     return summary

@@ -118,9 +118,8 @@ class RomanPipeline:
     Roman Medium-tier fluxes (F106, F129, F158) for the published checkpoint,
     in that order, in any consistent linear flux unit.
 
-    Passing ``None`` drops the colour prior and costs most of the redshift
-    accuracy --- 26% catastrophic outliers on the held-out split against 5%
-    with the imaging --- because a single in-band line is alias-degenerate.
+    Passing ``None`` removes the source-specific colours and can degrade
+    line identification because a single in-band line is alias-degenerate.
     It is not a grism-only *model*, though: this head was trained with
     photometry, so it receives its training-mean colours rather than nothing,
     which is mean imputation on an out-of-distribution input.

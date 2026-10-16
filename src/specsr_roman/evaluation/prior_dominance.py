@@ -25,7 +25,7 @@ by the detectability of the injected change, and judge ``r`` only where the
 information is physically present. Aggregate ``r`` is dominated by
 unrecoverable cases and understates a good model.
 
-Measured on this project, on the 3,552 held-out spectra with a detected line
+Historical v1 results (mixed-unit eligibility), on the 3,552 held-out spectra with a detected line
 (S/N >= 2): 0.22 for the published SR1 and 0.17 for the full pipeline. By
 recoverability bin (marginal, good, strong): 0.27, 0.21, 0.12 for SR1 and
 0.14, 0.16, 0.24 for the full pipeline. SR2 lowers the response where lines
@@ -39,7 +39,7 @@ published SR1 is the unaugmented one and this remains open work.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import numpy as np
 import torch
@@ -48,7 +48,7 @@ from ..checkpoints import load_sr1, load_sr2, load_zhead_ckpt
 from ..data import (
                       RomanFixedGridDataset,
                       apply_phot_noise,
-                      get_or_make_group_split,
+                      evaluation_split,
                       normalize,
 )
 from ..grids import GRISM_FWHM_AA
@@ -64,7 +64,7 @@ _trapz = getattr(np, "trapezoid", None) or np.trapz  # noqa: NPY201
 @dataclass
 class PriorDominanceConfig:
     data: str = "data/dataset/ou2024_h10307_dataset.npz"
-    sr1_ckpt: str = "sr1_ou2024_v6"
+    sr1_ckpt: str = "sr1_ou2024_v6_independent"
     #: Sources enter with a detected line, at the threshold used everywhere
     #: else (it was 5 until 2026-10-09, which left the marginal and most of the
     #: good bin out of the audit).
@@ -87,6 +87,11 @@ class PriorDominanceConfig:
     sigma_base_um: float = 0.005
     z_topk: int = 3
     zhead_use_spectrum: bool = True
+    split_mode: str = "three_way"
+    partition: str = "test"
+    # The target statistics are fixed across perturbations: changing the LR
+    # normalization must not itself amplify an unchanged standardized output.
+    output_scale: str = "legacy_lr"  # production rescaling; target_fixed isolates normalized output
 
 
 def _find_strongest_line(flux_hi, smooth_px: int = 101):
@@ -120,6 +125,32 @@ def _line_flux(spec, seg, wave):
     return _trapz((spec - cont)[seg], wave[seg])
 
 
+def restore_prediction(pred, input_stats, target_stats, output_scale="target_fixed"):
+    """Restore a normalized output in a declared, controlled unit system.
+
+    Training standardizes targets independently of LR inputs. Fixed original
+    target statistics make this a truth-conditioned sensitivity test, not an
+    inference-time absolute-flux calibration. The legacy convention allows an
+    LR scale change alone to change the measured output flux.
+    """
+    if output_scale == "target_fixed":
+        mean, std = target_stats
+    elif output_scale == "legacy_lr":
+        mean, std = input_stats
+    else:
+        raise ValueError(f"unknown response output scale: {output_scale}")
+    return pred * std + mean
+
+
+def recovery_is_usable(predicted, truth, scale, min_fraction):
+    """Compare physical line integrals on the same scale, never mixed units."""
+    if not np.isfinite(scale) or scale <= 0 or not np.isfinite(truth) or truth <= 0:
+        return False
+    expected = scale * truth
+    return all(np.isfinite(v) and v > 0 and v >= min_fraction * expected
+               for v in predicted.values())
+
+
 def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
     """Run the audit on SR1, and on the full pipeline when it is configured.
 
@@ -127,6 +158,8 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
     ``summary["sr2"]``), each per factor, overall and by recoverability bin. The
     SR1 entries are repeated at the top level.
     """
+    if cfg.output_scale not in ("target_fixed", "legacy_lr"):
+        raise ValueError("output_scale must be target_fixed or legacy_lr")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     sr1 = load_sr1(cfg.sr1_ckpt, device=device)
 
@@ -135,14 +168,22 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
     has_phot = chain and getattr(zhead, "n_phot", 0) > 0
     ds = RomanFixedGridDataset(cfg.data, with_phot=has_phot,
                                phot_tier=cfg.phot_tier if has_phot else None)
-    _, test_idx, _ = get_or_make_group_split(os.path.abspath(cfg.data), ds.ids)
+    train_idx, test_idx, split_path = evaluation_split(
+        os.path.abspath(cfg.data), ds.ids, cfg.split_mode, cfg.partition)
+    from ..training.common import require_split_provenance
+    for ckpt in (cfg.sr1_ckpt, cfg.zhead_ckpt, cfg.sr2_ckpt):
+        if ckpt:
+            require_split_provenance(ckpt, cfg.data, cfg.split_mode)
+    with np.load(cfg.data) as raw:
+        native_wave = raw["wavelength_low"]
+        native_error = raw["flux_low_err"][ds.keep_mask]
 
     wh = ds.wave_hi
     sig_hr_px = (cfg.fwhm_aa / 2.355) / np.median(np.diff(wh))
 
     # Candidates: bright enough that the line is genuinely in the data.
     best_snr = ds.line_snr.max(dim=1).values.numpy()
-    cand = [i for i in test_idx if best_snr[i] > cfg.snr_min][: cfg.max_sources]
+    cand = [i for i in test_idx if best_snr[i] >= cfg.snr_min][: cfg.max_sources]
     print(f"{len(cand)} candidate test sources with a recoverable line")
 
     if chain:
@@ -154,15 +195,15 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
         sr2 = load_sr2(cfg.sr2_ckpt, device=device, line_rest_um=line_rest,
                        wave_hi_um=wl_um)
         # z normalisation from the train split, as in the prediction cache
-        ztr = ds.z[np.setdiff1d(np.arange(len(ds)), test_idx)].numpy()
+        ztr = ds.z[train_idx].numpy()
         zmean, zstd = float(ztr.mean()), float(ztr.std())
         zminn, zmaxn = (ztr.min() - zmean) / zstd, (ztr.max() - zmean) / zstd
         run_cfg = {"z_topk": cfg.z_topk, "sigma_base_um": cfg.sigma_base_um,
                    "zhead_use_spectrum": cfg.zhead_use_spectrum}
         gen = torch.Generator(device=device).manual_seed(cfg.noise_seed)
 
-    def run_models(lr_hr_grid, err_hr_grid, phot=None):
-        """``{stage: prediction}`` in the units of the input spectrum."""
+    def run_models(lr_hr_grid, err_hr_grid, target_stats, phot=None):
+        """Predictions in the fixed target or explicitly requested legacy units."""
         xn, m, s = normalize(lr_hr_grid)
         err_n = err_hr_grid / max(s, 1e-25)
         x = torch.tensor(np.stack([xn, err_n])[None].astype(np.float32),
@@ -170,14 +211,17 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
         with torch.no_grad():
             if not chain:
                 pred, _ = sr1(x)
-                return {"sr1": pred[0, 0].cpu().numpy() * s + m}
+                return {"sr1": restore_prediction(pred[0, 0].cpu().numpy(), (m, s),
+                                                  target_stats, cfg.output_scale)}
             x_in, sr1_mean, z_modes, z_w, _ = build_sr2_input(
                 x, sr1, zhead, wl_um, line_rest, run_cfg, device, phot=phot,
                 z_mean=zmean, z_std=zstd, z_min_n=zminn, z_max_n=zmaxn)
             delta, _, _ = sr2(x_in, z_modes, z_w)
             sr2_mean = sr1_mean + constrain_delta(delta, cfg.delta_cap)
-        return {"sr1": sr1_mean[0, 0].cpu().numpy() * s + m,
-                "sr2": sr2_mean[0, 0].cpu().numpy() * s + m}
+        return {"sr1": restore_prediction(sr1_mean[0, 0].cpu().numpy(), (m, s),
+                                           target_stats, cfg.output_scale),
+                "sr2": restore_prediction(sr2_mean[0, 0].cpu().numpy(), (m, s),
+                                           target_stats, cfg.output_scale)}
 
     from scipy.ndimage import gaussian_filter1d
 
@@ -204,10 +248,12 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
 
     stages = ("sr1", "sr2") if chain else ("sr1",)
     # per stage: (factor, best-line S/N, r, source row) for every usable source
-    records: dict[str, list[tuple[float, float, float, float]]] = {
+    records: dict[str, list[tuple[float, float, float, float, float]]] = {
         k: [] for k in stages}
     n_used = 0
-    for i in cand:
+    for candidate_number, i in enumerate(cand):
+        if candidate_number % 100 == 0:
+            print(f"audited {candidate_number}/{len(cand)} candidates", flush=True)
         hr = np.nan_to_num(ds.hi_raw[i]).astype(np.float64)
         lr = ds.lo_raw[i].astype(np.float64)
         err = ds.err_raw[i].astype(np.float64)
@@ -222,18 +268,20 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
             phot = apply_phot_noise(torch.tensor(ds.phot[i])[None].to(device),
                                     cfg.eval_mag_err, gen, zhead.phot_sigma)
 
-        pred0 = run_models(lr, err, phot)
+        _, target_mean, target_std = normalize(hr)
+        target_stats = (target_mean, target_std)
+        pred0 = run_models(lr, err, target_stats, phot)
         L_pred0 = {k: _line_flux(v, seg, wh) for k, v in pred0.items()}
         L_true0 = _line_flux(hr, seg, wh)
-        # If a model does not recover the line at all, the ratio below is
-        # measuring noise and the test is undefined. Every stage has to pass,
-        # so the stages are compared on the same sources.
-        if L_true0 <= 0 or any(v < cfg.min_recovered_frac * L_true0 or v <= 0
-                               for v in L_pred0.values()):
-            continue
-
         scale = calibration_scale(hr, lr)
-        if scale is None or not np.isfinite(scale) or scale == 0:
+        if scale is None:
+            continue
+        # Fixed-target predictions and truth share units. Legacy predictions
+        # are in extraction units, so truth must be calibrated before gating.
+        gate_scale = 1.0 if cfg.output_scale == "target_fixed" else scale
+        if (not np.isfinite(scale) or scale <= 0
+                or not recovery_is_usable(L_pred0, L_true0, gate_scale,
+                                          cfg.min_recovered_frac)):
             continue
 
         cont = gaussian_filter1d(hr, 101)
@@ -244,7 +292,15 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
             # perturbed pair stays physically consistent -- LSF-smoothed to
             # grism resolution and converted into the extraction's units.
             delta = scale * gaussian_filter1d(hr_p - hr, sig_hr_px)
-            pred_p = run_models(lr + delta, err, phot)
+            pred_p = run_models(lr + delta, err, target_stats, phot)
+            # Evaluate the injected change on native independent noise samples.
+            lo, hi = wh[seg][[0, -1]]
+            margin = 4 * cfg.fwhm_aa / 2.355
+            win = (native_wave >= lo - margin) & (native_wave <= hi + margin)
+            en = native_error[i, win]
+            valid_noise = len(en) > 0 and np.all(np.isfinite(en) & (en > 0))
+            injected_snr = (abs(np.interp(native_wave[win], wh, delta).sum())
+                            / np.sqrt(np.sum(en ** 2)) if valid_noise else np.nan)
             for k in stages:
                 L_pred_p = _line_flux(pred_p[k], seg, wh)
                 if L_pred_p <= 0:
@@ -252,14 +308,18 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
                 r = np.log(L_pred_p / L_pred0[k]) / np.log(f)
                 if np.isfinite(r):
                     records[k].append((float(f), float(best_snr[i]), float(r),
-                                       float(i)))
+                                       float(i), float(injected_snr)))
         n_used += 1
 
     print(f"usable sources (line recovered above "
           f"{cfg.min_recovered_frac:.0%} of truth): {n_used}")
-    summary: dict = {"n_sources": n_used}
+    summary: dict = {"n_sources": n_used, "n_candidates": len(cand),
+                     "config": asdict(cfg), "split_path": split_path,
+                     "method_version": 2,
+                     "interpretation": "truth-conditioned fixed-scale sensitivity"
+                     if cfg.output_scale == "target_fixed" else "LR-restored sensitivity"}
     for k in stages:
-        rec = np.array(records[k]).reshape(-1, 4)
+        rec = np.array(records[k]).reshape(-1, 5)
         out: dict = {"per_factor": {}, "by_snr": []}
         print(f"\n{k.upper()}")
         for f in cfg.factors:
@@ -292,12 +352,28 @@ def run_prior_dominance(cfg: PriorDominanceConfig) -> dict:
             out["by_snr"].append(row)
             print(f"  {name:9s} sources={row['n']:5d}  median r {row['median']:.3f}  "
                   f"p25/p75 = {row['p25']:.3f}/{row['p75']:.3f}")
+        out["by_injected_snr"] = []
+        for lo, hi in ((0, 1), (1, 3), (3, 6), (6, np.inf)):
+            mask = (rec[:, 4] >= lo) & (rec[:, 4] < hi)
+            if mask.any():
+                out["by_injected_snr"].append({
+                    "lo": lo, "hi": hi if np.isfinite(hi) else None,
+                    "n_responses": int(mask.sum()),
+                    "n_sources": int(len(np.unique(rec[mask, 3]))),
+                    "median": float(np.median(rec[mask, 2]))})
         summary[k] = out
     # the SR1 numbers stay at the top level, where earlier callers read them
     summary.update(summary["sr1"])
     if cfg.out_json:
         import json
+        from pathlib import Path
         os.makedirs(os.path.dirname(os.path.abspath(cfg.out_json)), exist_ok=True)
+        records_path = str(Path(cfg.out_json).with_suffix(".records.npz"))
+        np.savez_compressed(records_path,
+                            columns=np.array(["factor", "best_line_snr", "response",
+                                              "dataset_row", "injected_snr"]),
+                            **{k: np.asarray(v).reshape(-1, 5) for k, v in records.items()})
+        summary["records_path"] = records_path
         with open(cfg.out_json, "w") as fh:
             json.dump(summary, fh, indent=2)
         print(f"wrote {cfg.out_json}")

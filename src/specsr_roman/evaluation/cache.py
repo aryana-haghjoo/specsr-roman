@@ -11,7 +11,7 @@ tuning a plot.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import numpy as np
 import torch
@@ -20,7 +20,8 @@ from ..checkpoints import CANONICAL_CHAIN, load_sr1, load_sr2, load_zhead_ckpt
 from ..data import (
                       RomanFixedGridDataset,
                       apply_phot_noise,
-                      get_or_make_group_split,
+                      evaluation_split,
+    get_or_make_group_split,
                       normalize,
 )
 from ..inference.pipeline import build_sr2_input
@@ -50,6 +51,8 @@ class CacheConfig:
     z_topk: int = 3
     #: False for a redshift head trained on photometry alone.
     zhead_use_spectrum: bool = True
+    split_mode: str = "three_way"
+    partition: str = "test"
     out: str = "outputs/pred_cache.npz"
 
 
@@ -90,7 +93,11 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
 
     ds = RomanFixedGridDataset(cfg.data, with_phot=has_phot,
                                phot_tier=cfg.phot_tier if has_phot else None)
-    _, test_idx, _ = get_or_make_group_split(os.path.abspath(cfg.data), ds.ids)
+    train_rows, test_idx, split_path = evaluation_split(
+        os.path.abspath(cfg.data), ds.ids, cfg.split_mode, cfg.partition)
+    from ..training.common import require_split_provenance
+    for ckpt in (cfg.sr1_ckpt, cfg.zhead_ckpt, cfg.sr2_ckpt):
+        require_split_provenance(ckpt, cfg.data, cfg.split_mode)
 
     sr1 = load_sr1(cfg.sr1_ckpt, device=device)
     wl_um = ds.wave_hi.astype(np.float32) * 1e-4
@@ -99,7 +106,6 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
                    wave_hi_um=wl_um)
 
     # z normalisation from the TRAIN split, matching how the stages were trained.
-    train_rows = np.setdiff1d(np.arange(len(ds)), test_idx)
     ztr = ds.z[train_rows].numpy()
     zmean, zstd = float(ztr.mean()), float(ztr.std())
     zminn, zmaxn = (ztr.min() - zmean) / zstd, (ztr.max() - zmean) / zstd
@@ -111,6 +117,7 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
                               "z_true", "z_pred", "line_snr",
                               "hr_mean", "hr_std", "lr_mean", "lr_std",
                               "ab_h158")}
+    pz_out = []
     gen = torch.Generator(device=device).manual_seed(cfg.noise_seed)
     with torch.no_grad():
         for s in range(0, len(test_idx), cfg.batch_size):
@@ -126,13 +133,20 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
                 phot = apply_phot_noise(phot, cfg.eval_mag_err, gen,
                                         zhead.phot_sigma)
 
+            sr1_out = sr1(x_low)
+            _, sr1_logvar = sr1_out
             x_in, sr1_mean, z_modes, z_w, _ = build_sr2_input(
                 x_low, sr1, zhead, wl_um, line_rest, run_cfg, device,
                 phot=phot, z_mean=zmean, z_std=zstd,
-                z_min_n=zminn, z_max_n=zmaxn)
+                z_min_n=zminn, z_max_n=zmaxn, sr1_out=sr1_out)
             delta, logvar, _ = sr2(x_in, z_modes, z_w)
             sr2_mean = sr1_mean + constrain_delta(delta, cfg.delta_cap)
 
+            z_in = torch.cat([x_low, sr1_mean, 0.5 * sr1_logvar], dim=1)
+            if not cfg.zhead_use_spectrum:
+                z_in = torch.zeros_like(z_in)
+            if hasattr(zhead, "z_centers"):
+                pz_out.append(torch.softmax(zhead(z_in, phot=phot), dim=-1).cpu().numpy())
             cols["lr"].append(x_low[:, 0].cpu().numpy())
             cols["lr_err"].append(x_low[:, 1].cpu().numpy())
             cols["sr1"].append(sr1_mean[:, 0].cpu().numpy())
@@ -156,7 +170,15 @@ def build_prediction_cache(cfg: CacheConfig) -> str:
     print()
 
     os.makedirs(os.path.dirname(os.path.abspath(cfg.out)), exist_ok=True)
+    import json
+    extra = ({"pz": np.concatenate(pz_out),
+              "z_centers": zhead.z_centers.cpu().numpy()} if pz_out else {})
     np.savez_compressed(cfg.out, wl_um=wl_um,
+                        object_id=ds.ids[test_idx], dataset_row=test_idx,
+                        raw_row=np.flatnonzero(ds.keep_mask)[test_idx],
+                        split_path=np.array(split_path),
+                        config=np.array(json.dumps(asdict(cfg))),
+                        **extra,
                         **{k: np.concatenate(v) for k, v in cols.items()},
                         **_true_line_fluxes(ds, test_idx))
     print(f"wrote {cfg.out}")

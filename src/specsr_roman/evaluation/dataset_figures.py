@@ -382,13 +382,20 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
     # three panels share the page width, so the text is set larger
     big = held_out is not None
     fs_title, fs_leg = (15, 10.5) if big else (12, 9)
+
+    def _panel_label(axis, text):
+        # same spot in every panel: the upper-left corner of the data box
+        axis.text(0.03, 0.97, text, transform=axis.transAxes, ha="left",
+                  va="top", fontsize=fs_title,
+                  bbox=dict(facecolor="white", edgecolor="none", alpha=0.8,
+                            pad=1.5))
     if big:
         plt.rcParams.update({"axes.labelsize": 16, "xtick.labelsize": 12.5,
                              "ytick.labelsize": 12.5})
     fig = plt.figure(figsize=(17.5, 5.4) if big else (13, 5.4))
     outer = GridSpec(1, 3 if big else 2, figure=fig,
                      wspace=0.25 if big else 0.22,
-                     width_ratios=[1.22, 1, 1] if big else None)
+                     width_ratios=[4.64, 3.6, 3.6] if big else None)
 
     # -- (a) redshift against magnitude, with marginals --
     ga = outer[0].subgridspec(2, 2, height_ratios=[1, 3.6], width_ratios=[3.6, 1],
@@ -412,7 +419,7 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
         ar.hist(mm, bins=mb, color=col, orientation="horizontal", **step)
     for h in (at, ar):
         h.axis("off")
-    at.set_title("(a) redshift and apparent magnitude", fontsize=fs_title)
+    _panel_label(ax, "(a)")
     handles = [
         plt.Line2D([], [], color=col_all, lw=2,
                    label=f"OpenUniverse2024 ({len(gid):,})"),
@@ -433,14 +440,20 @@ def plot_parent_sample(dataset: str = "data/dataset/ou2024_h10307_dataset.npz",
     bx.set_ylim(7.5, 12.2)
     bx.set_xlabel(r"Redshift $z$")
     bx.set_ylabel(r"$\log_{10}(M_\star/M_\odot)$")
-    bx.set_title("(b) stellar mass", fontsize=fs_title)
+    _panel_label(bx, "(b)")
 
     # -- (c) the held-out spectra, by the strong lines in the band --
     if held_out is not None:
         cx = fig.add_subplot(outer[2])
         draw_sample(cx, held_out, legend_fontsize=fs_leg)
         cx.set_xlim(0, 3.1)
-        cx.set_title("(c) strong lines in the grism band", fontsize=fs_title)
+        _panel_label(cx, "(c)")
+    # (b) and (c) take the size of the main box of (a), on the same baseline
+    box = ax.get_position()
+    for other in fig.axes:
+        if other not in (ax, at, ar):
+            x0 = other.get_position().x0
+            other.set_position([x0, box.y0, box.width, box.height])
     path = _save(fig, name)
 
     def pct(v):

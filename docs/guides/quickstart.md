@@ -56,17 +56,10 @@ with suspicion — that is what the PDF is telling you.
 out = pipe.predict(flux_low, flux_low_err, phot=None)
 ```
 
-This works, and it fails more often. On the held-out split it gives NMAD
-0.0013 with 2.9 % of outliers, against 0.0014 and 0.8 % with Roman
-Medium-tier imaging: where the line is too faint to settle its own identity,
-the colours are what choose between the candidates.
-
-Be precise about what the number measures, though. The published head was
-*trained* with photometry, so `phot=None` hands it its training-mean colours
-rather than removing the information — mean imputation on an
-out-of-distribution input. Read it as "the colour prior carries most of the
-redshift accuracy", not as the grism-only information floor, which would need
-a head trained without colours to measure.
+The head was trained with photometry. `phot=None` supplies training-mean
+colours, so this is mean imputation, not a separately trained grism-only
+model. The v0.6.0 independent test results use all three Roman bands;
+older missing-colour ablation statistics do not describe these weights.
 
 ## Batches
 

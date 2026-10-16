@@ -233,3 +233,41 @@ def log_z_plots(run, z_true, z_pred, sig_z, epoch) -> None:
     ax.set_ylabel("count")
     fig2.tight_layout()
     _log_figure(run, "val_sigz_hist", fig2, epoch)
+
+
+def require_split_provenance(checkpoint, dataset_path: str, split_mode: str):
+    """Reject legacy/upstream-selected weights in a new independent-test run."""
+    if split_mode != "three_way":
+        return
+    import json
+
+    from ..checkpoints import resolve_checkpoint
+    from ..data.splits import hash_file
+    path = resolve_checkpoint(checkpoint).with_suffix('.provenance.json')
+    if not path.exists():
+        raise ValueError(f"{checkpoint}: missing three-way training provenance; retrain upstream")
+    record = json.loads(path.read_text())
+    import hashlib
+    weight_path = resolve_checkpoint(checkpoint)
+    weight_hash = hashlib.sha256(weight_path.read_bytes()).hexdigest()
+    if record.get('weights_sha256') != weight_hash:
+        raise ValueError(f'{checkpoint}: checkpoint bytes differ from training provenance')
+    if (record.get('split_mode') != 'three_way'
+            or record.get('dataset_hash') != hash_file(dataset_path)):
+        raise ValueError(f"{checkpoint}: split/dataset provenance does not match this run")
+
+
+def write_split_provenance(checkpoint, dataset_path: str, cfg, split_path: str):
+    """Keep split provenance beside local weights, including upstream references."""
+    import hashlib
+    import json
+    from pathlib import Path
+
+    from ..config import to_dict
+    from ..data.splits import hash_file
+    record = {'weights_sha256': hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest(),
+              'split_mode': cfg.split_mode, 'dataset_hash': hash_file(dataset_path),
+              'split_path': str(split_path), 'config': to_dict(cfg),
+              'evaluation_partition_used_for_selection': 'validation'}
+    Path(checkpoint).with_suffix('.provenance.json').write_text(
+        json.dumps(record, indent=2) + '\n')

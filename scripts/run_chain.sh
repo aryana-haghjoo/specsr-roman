@@ -26,8 +26,8 @@ NOTIFY="${NOTIFY:-}"
 LOGS="${LOGS:-logs}"
 mkdir -p "$LOGS"
 
-SR1_CKPT="$RUNS/sr1/sr1_ou2024_v6_best.pth"
-ZHEAD_CKPT="$RUNS/zhead/zhead_ou2024_roman_med3_noisy_best.pth"
+SR1_CKPT="$RUNS/sr1/sr1_ou2024_v6_independent_best.pth"
+ZHEAD_CKPT="$RUNS/zhead/zhead_ou2024_roman_med3_noisy_independent_best.pth"
 
 run() {
   local label="$1"; shift
@@ -46,18 +46,18 @@ stages=(${stages[@]})
 for stage in "${stages[@]}"; do
   case "$stage" in
     sr1)
-      run sr1_ou2024_v6 specsr-roman train sr1 --config configs/sr1.yaml \
+      run sr1_ou2024_v6_independent specsr-roman train sr1 --config configs/sr1.yaml \
           --out-dir "$RUNS/sr1"
       ;;
     zhead)
       [[ -f "$SR1_CKPT" ]] || { echo "missing $SR1_CKPT — run the sr1 stage first" >&2; exit 1; }
-      run zhead_ou2024_roman_med3_noisy specsr-roman train zhead \
+      run zhead_ou2024_roman_med3_noisy_independent specsr-roman train zhead \
           --config configs/zhead.yaml --sr1-ckpt "$SR1_CKPT" \
           --out-dir "$RUNS/zhead"
       ;;
     sr2)
       [[ -f "$ZHEAD_CKPT" ]] || { echo "missing $ZHEAD_CKPT — run the zhead stage first" >&2; exit 1; }
-      run sr2_ou2024_v5_romanonly specsr-roman train sr2 --config configs/sr2.yaml \
+      run sr2_ou2024_v5_romanonly_independent specsr-roman train sr2 --config configs/sr2.yaml \
           --sr1-ckpt "$SR1_CKPT" --zhead-ckpt "$ZHEAD_CKPT" \
           --out-dir "$RUNS/sr2"
       ;;
@@ -68,8 +68,8 @@ for stage in "${stages[@]}"; do
         run "$name" specsr-roman train zhead --config "configs/$cfg.yaml" \
             --sr1-ckpt "$SR1_CKPT" --out-dir "$RUNS/zhead"
       done
-      RUBIN_CKPT="$RUNS/zhead/zhead_ou2024_roman_med3_rubin_y10_best.pth"
-      run sr2_ou2024_v5_rubin_y10 specsr-roman train sr2 \
+      RUBIN_CKPT="$RUNS/zhead/zhead_ou2024_roman_med3_rubin_y10_independent_best.pth"
+      run sr2_ou2024_v5_rubin_y10_independent specsr-roman train sr2 \
           --config configs/sr2_rubin_y10.yaml --sr1-ckpt "$SR1_CKPT" \
           --zhead-ckpt "$RUBIN_CKPT" --out-dir "$RUNS/sr2"
       ;;
@@ -77,13 +77,13 @@ for stage in "${stages[@]}"; do
       # one SR2 per redshift configuration of the band comparison; the
       # three-band and ten-year ones come from the sr2 and rubin stages
       [[ -f "$SR1_CKPT" ]] || { echo "missing $SR1_CKPT — run the sr1 stage first" >&2; exit 1; }
-      run sr2_ou2024_v5_rubin_y1 specsr-roman train sr2 \
+      run sr2_ou2024_v5_rubin_y1_independent specsr-roman train sr2 \
           --config configs/sr2_rubin_y1.yaml --sr1-ckpt "$SR1_CKPT" \
-          --zhead-ckpt "$RUNS/zhead/zhead_ou2024_roman_med3_rubin_y1_best.pth" \
+          --zhead-ckpt "$RUNS/zhead/zhead_ou2024_roman_med3_rubin_y1_independent_best.pth" \
           --out-dir "$RUNS/sr2"
-      run sr2_ou2024_v5_photonly_rubin_y10 specsr-roman train sr2 \
+      run sr2_ou2024_v5_photonly_rubin_y10_independent specsr-roman train sr2 \
           --config configs/sr2_photonly_rubin_y10.yaml --sr1-ckpt "$SR1_CKPT" \
-          --zhead-ckpt "$RUNS/zhead/zhead_ou2024_photonly_rubin_y10_best.pth" \
+          --zhead-ckpt "$RUNS/zhead/zhead_ou2024_photonly_rubin_y10_independent_best.pth" \
           --out-dir "$RUNS/sr2"
       ;;
     *)

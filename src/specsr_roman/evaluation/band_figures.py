@@ -69,16 +69,17 @@ class BandConfig:
 
 BANDS: tuple[BandConfig, ...] = (
     BandConfig("roman3", "Roman Y106, J129, H158",
-               "zhead_ou2024_roman_med3_noisy", "sr2_ou2024_v5_romanonly"),
+               "zhead_ou2024_roman_med3_noisy_independent", "sr2_ou2024_v5_romanonly_independent"),
     BandConfig("rubin_y1", r"+ Rubin $ugrizy$, 1 yr",
-               "zhead_ou2024_roman_med3_rubin_y1", "sr2_ou2024_v5_rubin_y1",
+               "zhead_ou2024_roman_med3_rubin_y1_independent", "sr2_ou2024_v5_rubin_y1_independent",
                phot_tier="medium_rubin"),
     BandConfig("rubin_y10", r"+ Rubin $ugrizy$, 10 yr",
-               "zhead_ou2024_roman_med3_rubin_y10", "sr2_ou2024_v5_rubin_y10",
+               "zhead_ou2024_roman_med3_rubin_y10_independent",
+               "sr2_ou2024_v5_rubin_y10_independent",
                phot_tier="medium_rubin"),
     BandConfig("photonly", "9 bands, no spectrum",
-               "zhead_ou2024_photonly_rubin_y10",
-               "sr2_ou2024_v5_photonly_rubin_y10",
+               "zhead_ou2024_photonly_rubin_y10_independent",
+               "sr2_ou2024_v5_photonly_rubin_y10_independent",
                phot_tier="medium_rubin", zhead_use_spectrum=False),
 )
 
@@ -634,14 +635,20 @@ def plot_line_flux(caches, fluxes=None):
 # ---------------------------------------------------------------------------
 # Response to the input
 # ---------------------------------------------------------------------------
-def plot_response_bands(bands=BANDS, outdir: str | None = None):
+def plot_response_bands(bands=BANDS, outdir: str | None = None,
+                        response_dir: str | None = None):
     """Response exponent per recoverability bin, the configurations side by side.
 
     One panel: the configurations give the same exponents, and a panel for
     each would be three points in an empty frame, four times.
     """
-    found = [(b, json.load(open(b.response))) for b in bands
-             if os.path.exists(b.response)]
+    paths = [(b, os.path.join(response_dir, f"response_{b.key}.json")
+              if response_dir else b.response) for b in bands]
+    found = [(b, json.load(open(path))) for b, path in paths if os.path.exists(path)]
+    methods = {(r.get("method_version", 1), r.get("config", {}).get("output_scale"))
+               for _, r in found}
+    if len(methods) > 1:
+        raise ValueError("cannot mix response methods in one figure")
     if not found:
         raise SystemExit("no prior_dominance_<key>.json found")
     colors = [F.COLOR_LR, F.COLOR_SR, F.COLOR_HR, "0.5"]

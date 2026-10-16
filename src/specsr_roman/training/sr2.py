@@ -15,8 +15,7 @@ from ..config import SR2Config, to_dict
 from ..data import (
     RomanFixedGridDataset,
     filter_split_min_lines,
-    get_or_make_group_split,
-    get_or_make_split,
+    training_split,
 )
 from ..inference.pipeline import build_sr2_input
 from ..lines import LINE_LIST_REST_AA, SR1_LINES_AA, angstrom_to_micron
@@ -36,8 +35,10 @@ from .common import (
     init_wandb,
     log_checkpoint_artifact,
     pick_device,
+    require_split_provenance,
     set_seed,
     wandb_log,
+    write_split_provenance,
 )
 from .losses import (
     line_flux_loss,
@@ -72,6 +73,10 @@ def train(cfg: SR2Config) -> dict:
     device = pick_device()
     out_dir = ensure_dir(cfg.out_dir)
     dataset_path = os.path.abspath(cfg.data)
+    if cfg.sr1_ckpt:
+        require_split_provenance(cfg.sr1_ckpt, dataset_path, cfg.split_mode)
+    if cfg.zhead_ckpt:
+        require_split_provenance(cfg.zhead_ckpt, dataset_path, cfg.split_mode)
     run_cfg = {"sigma_base_um": cfg.sigma_base_um, "z_topk": cfg.z_topk,
                "zhead_use_spectrum": cfg.zhead_use_spectrum}
 
@@ -84,12 +89,8 @@ def train(cfg: SR2Config) -> dict:
     if zhead_has_phot and full.phot is None:
         raise SystemExit("the ZHead expects photometry but the dataset has none")
 
-    if full.ids is not None:
-        train_idx, test_idx, split_path = get_or_make_group_split(
-            dataset_path, full.ids)
-    else:
-        train_idx, test_idx, split_path = get_or_make_split(
-            dataset_path, len(full))
+    train_idx, test_idx, split_path = training_split(
+        dataset_path, full.ids, len(full), cfg.split_mode)
     train_idx, test_idx = filter_split_min_lines(
         train_idx, test_idx, full.z.numpy(), full.wave_hi, cfg.min_strong_lines)
 
@@ -323,6 +324,7 @@ def train(cfg: SR2Config) -> dict:
             print(f"  saved best (goal {goal:.4f}) -> {best_path}", flush=True)
 
     summary = {"best_goal": best_goal, "best_checkpoint": str(best_path), **stats}
+    write_split_provenance(best_path, dataset_path, cfg, split_path)
     if cfg.push_to_hub:
         try:
             push_checkpoint(best_path, cfg.run_name or cfg.out_prefix,
@@ -334,7 +336,8 @@ def train(cfg: SR2Config) -> dict:
     log_checkpoint_artifact(
         run, best_path, cfg.run_name or cfg.out_prefix,
         {**summary, **to_dict(cfg), "dataset": dataset_path,
-         "train_rows": len(train_idx), "test_rows": len(test_idx)},
+         "train_rows": len(train_idx),
+         ("validation_rows" if cfg.split_mode == "three_way" else "test_rows"): len(test_idx)},
         upstream=[cfg.sr1_ckpt, cfg.zhead_ckpt], files=[split_path])
     finish_wandb(run)
     return summary

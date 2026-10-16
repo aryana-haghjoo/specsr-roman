@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "specsr-roman"
-version = "0.5.0"
+version = "0.6.0"
 description = "Physics-informed super-resolution of Roman grism spectra"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -90,6 +90,10 @@ include = [
     "/CITATION.cff",
     "/CHANGELOG.md",
     "/LICENSE",
+    "/scripts/run_chain.sh",
+    "/scripts/run_independent_validation.py",
+    "/scripts/make_tutorial_dataset.py",
+    "/scripts/derive_zeropoints.py",
 ]
 
 [tool.pytest.ini_options]

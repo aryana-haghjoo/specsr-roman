@@ -196,21 +196,10 @@ That standardisation is what makes the photometry ablation possible without
 retraining: "drop a band" is exactly "feed it its training mean", which
 standardises to 0 — the same vector `RomanPipeline.predict(phot=None)` sends.
 
-`specsr-roman evaluate ablation` uses it to answer which input the redshift
-came from. Removing all three colours takes the published head from NMAD
-0.0014 with 0.8 % of outliers to **0.0013 with 2.9 %**, so the colours remove
-outliers and leave the precision alone. Read that as an upper bound rather than an information
-floor: the head was *trained* with colours, and a grism-only head is a
-separate experiment that has not been run.
-
-The noise sweep in the same audit is the continuous version. Even with
-*noiseless* colours the outlier rate is 3.9 % rather than zero — the signature
-of a head reading its spectrum. A model that reaches 0 % is being handed an
-effectively complete SED. The `medium_rubin` tier (Rubin *ugrizy* added, at
-coadd depth) comes close to that, which is why it is always reported next to
-its photometry-only control: `specsr-roman evaluate ablation` scores the same
-nine bands with the spectrum blanked, and the difference is what the grism
-contributes. `grids.MAX_PHOT_BANDS` caps the band count at those nine.
+`specsr-roman evaluate ablation` mean-imputes colours to study their influence.
+The v0.6.0 reserved-test Roman chain has NMAD 0.00133 and 0.67% outliers.
+A missing-colour input is not a separately trained grism-only head. Earlier
+noise-sweep and ablation statistics describe older weights.
 
 > **Naming trap.** OU2024 uses the *old* Roman band names, which collide with
 > the current WFI scheme: OU2024 `R062` is 0.62 µm (current F062), and OU2024
@@ -273,9 +262,8 @@ improve).
 The goal used is `-recov_amp + lam_hallu * hallu_amp`: integrated
 predicted-over-true flux on *recoverable* strong lines against the same
 quantity on *undetectable* ones. It selects the sharpest epoch that is not yet
-hallucinating — epoch 2 on the published run. That is the design working:
-hallucination amplitude climbs from 0.26 to 0.62 by epoch 150 while
-recoverable amplitude barely moves.
+hallucinating. The independent Roman run selects epoch 8 of 150 on the
+validation partition; the final epoch is not the released checkpoint.
 
 ---
 

@@ -78,7 +78,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 
 from ..checkpoints import load_sr1, load_zhead_ckpt
-from ..data import RomanFixedGridDataset, get_or_make_group_split
+from ..data import RomanFixedGridDataset, evaluation_split
 from ..grids import PHOT_BANDS, ROMAN_MEDIUM_BANDS, ROMAN_MEDIUM_RUBIN_BANDS
 from ..models import pz_stats, z_metrics
 from .metrics import MIN_BEST_LINE_SNR
@@ -94,12 +94,14 @@ NOISE_MAG = (0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0)
 @dataclass
 class AblationConfig:
     data: str = "data/dataset/ou2024_h10307_dataset.npz"
-    sr1_ckpt: str = "sr1_ou2024_v6"
+    sr1_ckpt: str = "sr1_ou2024_v6_independent"
     #: The deployable Roman Medium-tier head. There is deliberately no
     #: wider-band head here: a model fed bands the survey does not deliver
     #: alongside the grism reads the redshift off an effectively complete SED
     #: and measures the simulation rather than the instrument.
-    zhead_ckpt: str = "zhead_ou2024_roman_med3_noisy"
+    zhead_ckpt: str = "zhead_ou2024_roman_med3_noisy_independent"
+    split_mode: str = "three_way"
+    partition: str = "test"
     roman_bands: tuple[int, ...] = ROMAN_MEDIUM_BANDS
     eval_mag_err: float = 0.05
     noise_seed: int = 0
@@ -109,15 +111,15 @@ class AblationConfig:
     #: Heads trained with Rubin *ugrizy* added to the three Roman bands, as
     #: ``(label, checkpoint)``. A checkpoint that is not on disk is skipped.
     rubin_heads: tuple[tuple[str, str], ...] = (
-        ("+ Rubin, 1 yr", "runs/zhead/zhead_ou2024_roman_med3_rubin_y1_best.pth"),
-        ("+ Rubin, 10 yr", "runs/zhead/zhead_ou2024_roman_med3_rubin_y10_best.pth"),
+        ("+ Rubin, 1 yr", "runs/zhead/zhead_ou2024_roman_med3_rubin_y1_independent_best.pth"),
+        ("+ Rubin, 10 yr", "runs/zhead/zhead_ou2024_roman_med3_rubin_y10_independent_best.pth"),
     )
     rubin_bands: tuple[int, ...] = ROMAN_MEDIUM_RUBIN_BANDS
     #: The control: the same nine bands with the spectrum blanked at train
     #: and eval. What it cannot do is what the grism contributes.
     photonly_heads: tuple[tuple[str, str], ...] = (
         ("9 bands, no spectrum",
-         "runs/zhead/zhead_ou2024_photonly_rubin_y10_best.pth"),
+         "runs/zhead/zhead_ou2024_photonly_rubin_y10_independent_best.pth"),
     )
 
 
@@ -481,7 +483,11 @@ def run_ablation(cfg: AblationConfig) -> list[dict]:
     ds = RomanFixedGridDataset(cfg.data, with_phot=True)
     if ds.phot is None:
         raise SystemExit("dataset has no `phot` array")
-    _, test_idx, _ = get_or_make_group_split(os.path.abspath(cfg.data), ds.ids)
+    _, test_idx, _ = evaluation_split(
+        os.path.abspath(cfg.data), ds.ids, cfg.split_mode, cfg.partition)
+    from ..training.common import require_split_provenance
+    for checkpoint in (cfg.sr1_ckpt, cfg.zhead_ckpt):
+        require_split_provenance(checkpoint, cfg.data, cfg.split_mode)
     loader = DataLoader(Subset(ds, test_idx), batch_size=cfg.batch_size,
                         shuffle=False)
 

@@ -15,9 +15,8 @@ from ..data import (
     RomanFixedGridDataset,
     apply_phot_noise,
     filter_split_min_lines,
-    get_or_make_group_split,
-    get_or_make_split,
     standardization_stats,
+    training_split,
 )
 from ..grids import phot_flux_sigma
 from ..models import (
@@ -37,8 +36,10 @@ from .common import (
     log_checkpoint_artifact,
     log_z_plots,
     pick_device,
+    require_split_provenance,
     set_seed,
     wandb_log,
+    write_split_provenance,
 )
 
 __all__ = ["train"]
@@ -56,7 +57,10 @@ def train(cfg: ZHeadConfig) -> dict:
     set_seed(cfg.seed)
     device = pick_device()
     out_dir = ensure_dir(cfg.out_dir)
+
     dataset_path = os.path.abspath(cfg.data)
+    if cfg.sr1_ckpt:
+        require_split_provenance(cfg.sr1_ckpt, dataset_path, cfg.split_mode)
 
     sr1 = load_sr1(cfg.sr1_ckpt, device=device)
     for p in sr1.parameters():
@@ -68,12 +72,8 @@ def train(cfg: ZHeadConfig) -> dict:
     if cfg.use_phot and full_ds.phot is None:
         raise SystemExit("use_phot is set but the dataset has no `phot` array")
 
-    if full_ds.ids is not None:
-        train_idx, test_idx, split_path = get_or_make_group_split(
-            dataset_path, full_ds.ids)
-    else:
-        train_idx, test_idx, split_path = get_or_make_split(
-            dataset_path, len(full_ds))
+    train_idx, test_idx, split_path = training_split(
+        dataset_path, full_ds.ids, len(full_ds), cfg.split_mode)
     train_idx, test_idx = filter_split_min_lines(
         train_idx, test_idx, full_ds.z.numpy(), full_ds.wave_hi,
         cfg.min_strong_lines)
@@ -236,6 +236,7 @@ def train(cfg: ZHeadConfig) -> dict:
     summary = {"best_nmad": best_nmad, "best_checkpoint": str(best_path),
                "z_mean": z_mean, "z_std": z_std, **met}
 
+    write_split_provenance(best_path, dataset_path, cfg, split_path)
     if cfg.push_to_hub:
         try:
             push_checkpoint(best_path, cfg.run_name or cfg.out_prefix,
@@ -249,7 +250,8 @@ def train(cfg: ZHeadConfig) -> dict:
         run, best_path, cfg.run_name or cfg.out_prefix,
         {**summary, **to_dict(cfg), "dataset": dataset_path,
          "phot_bands": list(full_ds.phot_bands or ()),
-         "train_rows": len(train_idx), "test_rows": len(test_idx)},
+         "train_rows": len(train_idx),
+         ("validation_rows" if cfg.split_mode == "three_way" else "test_rows"): len(test_idx)},
         upstream=[cfg.sr1_ckpt], files=[split_path])
     finish_wandb(run)
     return summary

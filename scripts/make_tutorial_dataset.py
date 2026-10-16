@@ -34,7 +34,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
-from specsr_roman.data import get_or_make_group_split  # noqa: E402
+from specsr_roman.data.splits import get_or_make_three_way_split  # noqa: E402
 
 #: Columns copied straight through, row-subset for the per-row ones.
 ROW_KEYS = ("flux_low", "flux_low_err", "flux_high", "redshift", "ids",
@@ -48,7 +48,7 @@ HUB_PATH = "tutorial/ou2024_h10307_tutorial.npz"
 def build(source: str, out: str, n_rows: int, seed: int) -> str:
     data = np.load(source, allow_pickle=True)
     ids = np.asarray(data["ids"])
-    _, test_idx, _ = get_or_make_group_split(source, ids)
+    _, _, test_idx, _ = get_or_make_three_way_split(source, ids)
 
     rng = np.random.default_rng(seed)
     rows = np.sort(rng.permutation(test_idx)[:n_rows])
