@@ -44,7 +44,6 @@ def prepare(data, outdir):
             split_mode="three_way",
             out_dir=str(outdir / "runs" / stage),
             out_prefix=config["out_prefix"].removesuffix("_independent") + "_independent",
-            wandb_mode="disabled",
             push_to_hub=False,
         )
         if stage == "sr1":

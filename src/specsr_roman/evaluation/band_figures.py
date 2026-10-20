@@ -88,14 +88,20 @@ FLUX_LINES = ((r"[O III] $\lambda$5007", 0.50076, 2), (r"H$\alpha$", 0.65628, 3)
 _C_AA = 2.99792458e18
 
 
-def load_band_caches(bands=BANDS) -> dict:
-    """``{BandConfig: cache}`` for the configurations whose cache exists."""
+def load_band_caches(bands=BANDS, cache_dir: str | None = None) -> dict:
+    """``{BandConfig: cache}`` for the configurations whose cache exists.
+
+    ``cache_dir`` holds ``pred_cache_<key>.npz`` for every configuration, as
+    the independent run writes them; without it the default paths are used.
+    """
     out = {}
     for b in bands:
-        if os.path.exists(b.cache):
-            out[b] = _with_scales(np.load(b.cache, allow_pickle=True))
+        path = (os.path.join(cache_dir, f"pred_cache_{b.key}.npz") if cache_dir
+                else b.cache)
+        if os.path.exists(path):
+            out[b] = _with_scales(np.load(path, allow_pickle=True))
         else:
-            print(f"no cache for {b.key} ({b.cache}); panel left out")
+            print(f"no cache for {b.key} ({path}); panel left out")
     if not out:
         raise SystemExit("no band caches found: run scripts/run_eval.sh")
     return out
@@ -328,12 +334,13 @@ def plot_psd_bands(caches):
 #: so a spectrum is named by object id, visit and detector. Each entry then
 #: gives the line complex its zooms frame (a key of ``figures.LINE_GROUPS``),
 #: the ``line_snr`` column and name of the line its title quotes, and the case.
+#: All four are in the reserved test partition of the three-way split.
 HARD_CASES = (
-    (10307100430361, 16189, 15, "halpha_nii", 3, r"H$\alpha$",
+    (10307100527798, 16188, 12, "halpha_nii", 3, r"H$\alpha$",
      "A marginal detection"),
-    (10307101343410, 16188, 17, "o3hb", 2, r"[O III] $\lambda5007$",
+    (10307100811871, 16188, 18, "o3hb", 2, r"[O III] $\lambda5007$",
      "A faint doublet"),
-    (10307000644988, 16189, 7, "halpha_nii", 3, r"H$\alpha$",
+    (10307100176968, 16188, 18, "halpha_nii", 3, r"H$\alpha$",
      "A single line and a wrong redshift"),
     (10307101714760, 16188, 8, "halpha_nii", 3, r"H$\alpha$",
      "A marginal line at the red end of the band"),
@@ -342,13 +349,20 @@ HARD_CASES_CACHE = "outputs/hard_cases_cache.npz"
 _DATASET = "data/dataset/ou2024_h10307_dataset.npz"
 
 
-def _test_rows(cases, data: str = _DATASET) -> list[int]:
-    """Row of the prediction cache for each ``(object id, visit, sca, ...)``."""
-    from ..data import get_or_make_group_split
+def _test_rows(cases, cache=None, data: str = _DATASET) -> list[int]:
+    """Row of the prediction cache for each ``(object id, visit, sca, ...)``.
+
+    A cache that records its ``dataset_row`` is indexed through it; an older
+    cache is assumed to hold the legacy test split in dataset order.
+    """
     d = np.load(data, allow_pickle=True)
-    _, test_idx, _ = get_or_make_group_split(os.path.abspath(data), d["ids"],
-                                             verbose=False)
-    ids, visit, sca = (d[k][test_idx] for k in ("ids", "visit", "sca"))
+    if cache is not None and "dataset_row" in cache:
+        idx = np.asarray(cache["dataset_row"])
+    else:
+        from ..data import get_or_make_group_split
+        _, idx, _ = get_or_make_group_split(os.path.abspath(data), d["ids"],
+                                            verbose=False)
+    ids, visit, sca = (d[k][idx] for k in ("ids", "visit", "sca"))
     rows = []
     for oid, v, s, *_ in cases:
         (row,) = np.where((ids == oid) & (visit == v) & (sca == s))[0]
@@ -506,7 +520,7 @@ def plot_spectra_bands(caches, cutouts: str = HARD_CASES_CACHE):
     two-dimensional arrays are not in the dataset, so the detector images of
     these galaxies are dispersed again the first time the figure is made.
     """
-    rows = _test_rows(HARD_CASES)
+    rows = _test_rows(HARD_CASES, next(iter(caches.values())))
     if not os.path.exists(cutouts):
         build_cutout_cache({c[0]: c[1:3] for c in HARD_CASES}, cutouts)
     cut = np.load(cutouts, allow_pickle=True)
@@ -772,9 +786,11 @@ def measure_band_metrics(caches, fluxes=None) -> dict:
 
 
 def make_band_figures(bands=BANDS, outdir: str = "outputs/figures",
-                      metrics_json: str = "outputs/band_metrics.json") -> dict:
+                      metrics_json: str = "outputs/band_metrics.json",
+                      cache_dir: str | None = None,
+                      cutouts: str = HARD_CASES_CACHE) -> dict:
     """Render every four-panel figure and write the numbers behind them."""
-    caches = load_band_caches(bands)
+    caches = load_band_caches(bands, cache_dir)
     previous, F.OUTDIR = F.OUTDIR, outdir
     try:
         with F.FigureStyle():
@@ -784,7 +800,7 @@ def make_band_figures(bands=BANDS, outdir: str = "outputs/figures",
             plot_sn_bands(caches)
             plot_psd_bands(caches)
             plot_river_bands(caches)
-            plot_spectra_bands(caches)
+            plot_spectra_bands(caches, cutouts)
         metrics = measure_band_metrics(caches, fluxes)
     finally:
         F.OUTDIR = previous

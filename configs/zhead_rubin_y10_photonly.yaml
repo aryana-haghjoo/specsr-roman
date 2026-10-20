@@ -23,5 +23,4 @@ weight_decay: 1.0e-05
 out_prefix: zhead_ou2024_photonly_rubin_y10_independent
 split_mode: three_way
 out_dir: runs/zhead
-wandb_mode: disabled
 push_to_hub: false

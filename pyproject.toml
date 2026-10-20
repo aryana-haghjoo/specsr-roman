@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "specsr-roman"
-version = "0.6.1"
+version = "0.6.2"
 description = "Physics-informed super-resolution of Roman grism spectra"
 readme = "README.md"
 license = { file = "LICENSE" }

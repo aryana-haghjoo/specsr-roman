@@ -27,5 +27,4 @@ zhead_lr_mult: 0.1
 out_prefix: sr2_ou2024_v5_romanonly_independent
 split_mode: three_way
 out_dir: runs/sr2
-wandb_mode: disabled
 push_to_hub: false

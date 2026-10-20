@@ -21,5 +21,4 @@ weight_decay: 1.0e-05
 out_prefix: zhead_ou2024_roman_med3_noisy_independent
 split_mode: three_way
 out_dir: runs/zhead
-wandb_mode: disabled
 push_to_hub: false

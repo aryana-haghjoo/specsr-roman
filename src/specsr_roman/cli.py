@@ -161,6 +161,13 @@ def build_parser() -> argparse.ArgumentParser:
                            help="the SR2 evaluation, one panel per redshift "
                                 "configuration")
     bf.add_argument("--outdir", default="outputs/figures")
+    bf.add_argument("--cache-dir", default=None,
+                    help="directory of pred_cache_<config>.npz (default: outputs/)")
+    bf.add_argument("--response-dir", default=None,
+                    help="directory of response_<config>.json audits")
+    bf.add_argument("--metrics-json", default="outputs/band_metrics.json")
+    bf.add_argument("--cutouts", default="outputs/hard_cases_cache.npz",
+                    help="cutout cache of the example spectra (built if missing)")
 
     ab = ev_sub.add_parser("ablation",
                            help="photometry ablation: with and without colours")
@@ -371,9 +378,10 @@ def _cmd_evaluate(args) -> int:
         import matplotlib
         matplotlib.use("Agg")
         from .evaluation.band_figures import make_band_figures, plot_response_bands
-        make_band_figures(outdir=args.outdir)
+        make_band_figures(outdir=args.outdir, metrics_json=args.metrics_json,
+                          cache_dir=args.cache_dir, cutouts=args.cutouts)
         try:
-            plot_response_bands(outdir=args.outdir)
+            plot_response_bands(outdir=args.outdir, response_dir=args.response_dir)
         except SystemExit as exc:
             print(f"response panels skipped: {exc}")
         return 0

@@ -83,7 +83,16 @@ and prediction cache (`outputs/pred_cache.npz` for the first,
 
 ```bash
 specsr-roman evaluate band-figures      # every figure below, plus band_metrics.json
+
+# from the v0.6.x reserved-test caches (pred_cache_<config>.npz in one directory)
+specsr-roman evaluate band-figures --cache-dir path/to/caches \
+    --response-dir path/to/lr_restored --outdir outputs/figures
 ```
+
+The example spectra (`band_figures.HARD_CASES`) are in the reserved test
+partition. Their cache rows are found through each cache's `dataset_row`, and
+their 2D cutouts are dispersed once into `--cutouts` (this needs grizli and
+the raw detector images).
 
 | File | What it shows |
 |---|---|

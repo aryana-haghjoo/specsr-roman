@@ -3,6 +3,27 @@
 Notable changes to `specsr-roman`. Versions follow [semantic
 versioning](https://semver.org/); until 1.0 the public API may still move.
 
+## [0.6.2] — 2026-10-20
+
+Plotting changes behind the manuscript's figures. The weights, dataset, test
+caches and audits are those of v0.6.1, unchanged.
+
+### Added
+
+- `specsr-roman evaluate band-figures` takes `--cache-dir`, `--response-dir`,
+  `--metrics-json` and `--cutouts`, so the four-panel figures render from the
+  reserved-test caches of any release.
+
+### Changed
+
+- The example spectra of `spectra_examples_bands` are in the reserved test
+  partition. Three of the four previous cases were in the validation
+  partition of the three-way split. Cache rows are now found through
+  `dataset_row`.
+- The training configs no longer set `wandb_mode: disabled`. Runs sync to
+  Weights & Biases when it is installed, as before 0.6.0. Set the key, or
+  `WANDB_MODE=disabled`, to turn it off.
+
 ## [0.6.1] — 2026-10-16
 
 Completes the reserved-test response and uncertainty audits of the unchanged

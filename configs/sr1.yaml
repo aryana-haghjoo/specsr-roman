@@ -34,7 +34,6 @@ ema_alpha: 0.9
 out_prefix: sr1_ou2024_v6_independent
 split_mode: three_way
 out_dir: runs/sr1
-wandb_mode: disabled
 push_to_hub: false
 export_predictions: false
 init_checkpoint: null
